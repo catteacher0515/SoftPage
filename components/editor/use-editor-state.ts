@@ -34,6 +34,14 @@ export function useEditorState() {
     }))
   }
 
+  const updateTypographyFieldFromInput = (
+    field: TypographyField,
+    value: number,
+  ) => {
+    if (!Number.isFinite(value)) return
+    updateTypographyField(field, value)
+  }
+
   return useMemo(
     () => ({
       activeTextBlock,
@@ -43,6 +51,7 @@ export function useEditorState() {
       setTypography,
       updateTextBlock,
       updateTypographyField,
+      updateTypographyFieldFromInput,
     }),
     [activeTextBlock, blocks, typography],
   )

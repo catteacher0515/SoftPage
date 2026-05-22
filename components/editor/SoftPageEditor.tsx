@@ -7,8 +7,9 @@ export function SoftPageEditor() {
     activeTextBlock,
     typography,
     updateTextBlock,
-    updateTypographyField,
+    updateTypographyFieldFromInput,
   } = useEditorState()
+  const paragraphs = (activeTextBlock?.value ?? '').split('\n')
 
   return (
     <main
@@ -35,7 +36,10 @@ export function SoftPageEditor() {
             type="number"
             value={typography.fontSize}
             onChange={(event) =>
-              updateTypographyField('fontSize', Number(event.target.value))
+              updateTypographyFieldFromInput(
+                'fontSize',
+                event.target.value === '' ? Number.NaN : Number(event.target.value),
+              )
             }
           />
         </label>
@@ -47,7 +51,10 @@ export function SoftPageEditor() {
             step="0.1"
             value={typography.lineHeight}
             onChange={(event) =>
-              updateTypographyField('lineHeight', Number(event.target.value))
+              updateTypographyFieldFromInput(
+                'lineHeight',
+                event.target.value === '' ? Number.NaN : Number(event.target.value),
+              )
             }
           />
         </label>
@@ -58,7 +65,10 @@ export function SoftPageEditor() {
             type="number"
             value={typography.fontWeight}
             onChange={(event) =>
-              updateTypographyField('fontWeight', Number(event.target.value))
+              updateTypographyFieldFromInput(
+                'fontWeight',
+                event.target.value === '' ? Number.NaN : Number(event.target.value),
+              )
             }
           />
         </label>
@@ -69,9 +79,9 @@ export function SoftPageEditor() {
             type="number"
             value={typography.paragraphSpacing}
             onChange={(event) =>
-              updateTypographyField(
+              updateTypographyFieldFromInput(
                 'paragraphSpacing',
-                Number(event.target.value),
+                event.target.value === '' ? Number.NaN : Number(event.target.value),
               )
             }
           />
@@ -83,7 +93,10 @@ export function SoftPageEditor() {
             type="number"
             value={typography.pagePadding}
             onChange={(event) =>
-              updateTypographyField('pagePadding', Number(event.target.value))
+              updateTypographyFieldFromInput(
+                'pagePadding',
+                event.target.value === '' ? Number.NaN : Number(event.target.value),
+              )
             }
           />
         </label>
@@ -96,7 +109,18 @@ export function SoftPageEditor() {
             fontWeight: typography.fontWeight,
           }}
         >
-          {activeTextBlock?.value}
+          {paragraphs.map((paragraph, index) => (
+            <p
+              key={`${index}-${paragraph}`}
+              style={{
+                margin: 0,
+                marginBottom:
+                  index === paragraphs.length - 1 ? 0 : typography.paragraphSpacing,
+              }}
+            >
+              {paragraph === '' ? '\u00a0' : paragraph}
+            </p>
+          ))}
         </article>
       </section>
     </main>
