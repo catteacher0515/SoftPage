@@ -1,45 +1,52 @@
 import type { Block } from '../editor/types'
 
-export type MeasuredBlock = {
+export type MeasuredSegment = {
   id: string
+  blockId: string
   block: Block
+  kind: 'paragraph' | 'image'
+  text: string
   height: number
 }
 
 export type PaginatedPage = {
   id: string
-  blocks: MeasuredBlock[]
+  segments: MeasuredSegment[]
 }
 
-export function paginateBlocks(
-  blocks: MeasuredBlock[],
+export function paginateSegments(
+  segments: MeasuredSegment[],
   availableHeight: number,
+  segmentGap: number,
 ): PaginatedPage[] {
   const pages: PaginatedPage[] = []
-  let currentPageBlocks: MeasuredBlock[] = []
+  let currentSegments: MeasuredSegment[] = []
   let currentHeight = 0
 
-  blocks.forEach((item) => {
-    const nextHeight = currentPageBlocks.length === 0 ? item.height : currentHeight + item.height
+  segments.forEach((segment) => {
+    const nextHeight =
+      currentSegments.length === 0
+        ? segment.height
+        : currentHeight + segmentGap + segment.height
 
-    if (currentPageBlocks.length > 0 && nextHeight > availableHeight) {
+    if (currentSegments.length > 0 && nextHeight > availableHeight) {
       pages.push({
         id: `page-${pages.length + 1}`,
-        blocks: currentPageBlocks,
+        segments: currentSegments,
       })
-      currentPageBlocks = [item]
-      currentHeight = item.height
+      currentSegments = [segment]
+      currentHeight = segment.height
       return
     }
 
-    currentPageBlocks.push(item)
+    currentSegments.push(segment)
     currentHeight = nextHeight
   })
 
-  if (currentPageBlocks.length > 0) {
+  if (currentSegments.length > 0) {
     pages.push({
       id: `page-${pages.length + 1}`,
-      blocks: currentPageBlocks,
+      segments: currentSegments,
     })
   }
 

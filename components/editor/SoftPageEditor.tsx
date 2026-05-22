@@ -1,9 +1,8 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { BlockRenderer } from '../preview/BlockRenderer'
 import { PageCanvas } from '../preview/PageCanvas'
-import { paginateBlocks, type MeasuredBlock } from '../preview/pagination'
+import { paginateSegments, type MeasuredSegment } from '../preview/pagination'
 import { useEditorState } from './use-editor-state'
 
 const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024
@@ -29,7 +28,7 @@ export function SoftPageEditor() {
     updateTypographyFieldFromInput,
   } = useEditorState()
   const measureRootRef = useRef<HTMLDivElement | null>(null)
-  const [measuredBlocks, setMeasuredBlocks] = useState<MeasuredBlock[]>([])
+  const [measuredSegments, setMeasuredSegments] = useState<MeasuredSegment[]>([])
   const [previewWidth, setPreviewWidth] = useState(0)
 
   useEffect(() => {
@@ -39,21 +38,27 @@ export function SoftPageEditor() {
 
     const updateMeasurements = () => {
       const items = Array.from(
-        measureRoot.querySelectorAll<HTMLElement>('[data-measure-block]'),
+        measureRoot.querySelectorAll<HTMLElement>('[data-measure-segment]'),
       ).map((element) => {
+        const segmentId = element.dataset.segmentId ?? ''
         const blockId = element.dataset.blockId ?? ''
         const block = blocks.find((currentBlock) => currentBlock.id === blockId)
 
         return block
           ? {
-              id: block.id,
+              id: segmentId,
+              blockId,
               block,
+              kind: block.type === 'image' ? 'image' : 'paragraph',
+              text: element.dataset.segmentText ?? '',
               height: element.getBoundingClientRect().height,
             }
           : null
       })
 
-      setMeasuredBlocks(items.filter((item): item is MeasuredBlock => item !== null))
+      const nextSegments = items.filter((item): item is MeasuredSegment => item !== null)
+
+      setMeasuredSegments(nextSegments)
       setPreviewWidth(measureRoot.getBoundingClientRect().width)
     }
 
@@ -68,12 +73,13 @@ export function SoftPageEditor() {
   }, [blocks, typography])
 
   const pages = useMemo(() => {
-    const availableHeight = previewWidth > 0 ? (previewWidth * 4) / 3 - 64 : 0
+    const pageWidth = previewWidth > 0 ? Math.min(previewWidth, 360) : 0
+    const availableHeight = pageWidth > 0 ? (pageWidth * 4) / 3 - typography.pagePadding * 2 : 0
 
     return availableHeight > 0
-      ? paginateBlocks(measuredBlocks, availableHeight)
+      ? paginateSegments(measuredSegments, availableHeight, typography.paragraphSpacing)
       : []
-  }, [measuredBlocks, previewWidth])
+  }, [measuredSegments, previewWidth, typography.paragraphSpacing, typography.pagePadding])
 
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -234,16 +240,47 @@ export function SoftPageEditor() {
               width: '100%',
             }}
           >
-            {blocks.map((block) => (
-              <BlockRenderer
-                key={block.id}
-                block={block}
-                typography={typography}
-                measure
-                active={block.id === activeTextBlockId}
-                onSelect={() => selectTextBlock(block.id)}
-              />
-            ))}
+            {blocks.flatMap((block) => {
+              if (block.type === 'image') {
+                return [
+                  <img
+                    key={block.id}
+                    data-measure-segment
+                    data-segment-id={`${block.id}-image`}
+                    data-block-id={block.id}
+                    src={block.src}
+                    alt={block.alt}
+                    style={{ display: 'block', maxWidth: '100%', width: '100%', height: 'auto' }}
+                  />,
+                ]
+              }
+
+              const paragraphs = block.value.split('\n')
+
+              return paragraphs.map((paragraph, index) => (
+                <p
+                  key={`${block.id}-${index}-${paragraph}`}
+                  data-measure-segment
+                  data-segment-id={`${block.id}-paragraph-${index}`}
+                  data-block-id={block.id}
+                  data-segment-text={paragraph === '' ? '\u00a0' : paragraph}
+                  onClick={() => selectTextBlock(block.id)}
+                  style={{
+                    margin: 0,
+                    marginBottom:
+                      index === paragraphs.length - 1 ? 0 : typography.paragraphSpacing,
+                    outline:
+                      block.id === activeTextBlockId
+                        ? '2px solid #111'
+                        : '2px solid transparent',
+                    outlineOffset: 6,
+                    cursor: 'text',
+                  }}
+                >
+                  {paragraph === '' ? '\u00a0' : paragraph}
+                </p>
+              ))
+            })}
           </article>
         </div>
       </section>

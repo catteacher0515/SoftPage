@@ -1,5 +1,4 @@
 import type { TypographyConfig } from '../editor/types'
-import { BlockRenderer } from './BlockRenderer'
 import type { PaginatedPage } from './pagination'
 
 type PageCanvasProps = {
@@ -17,7 +16,7 @@ export function PageCanvas({ pages, typography }: PageCanvasProps) {
             width: 'min(100%, 360px)',
             aspectRatio: '3 / 4',
             background: '#F6F1E8',
-            padding: 32,
+            padding: typography.pagePadding,
             boxSizing: 'border-box',
             overflow: 'hidden',
             display: 'grid',
@@ -32,8 +31,30 @@ export function PageCanvas({ pages, typography }: PageCanvasProps) {
           }}
         >
           <div style={{ display: 'grid', gap: typography.paragraphSpacing, width: '100%' }}>
-            {page.blocks.map(({ id, block }) => {
-              return <BlockRenderer key={id} block={block} typography={typography} />
+            {page.segments.map((segment) => {
+              if (segment.kind === 'image') {
+                const imageBlock = segment.block as Extract<typeof segment.block, { type: 'image' }>
+
+                return (
+                  <img
+                    key={segment.id}
+                    src={imageBlock.src}
+                    alt={imageBlock.alt}
+                    style={{ display: 'block', maxWidth: '100%', width: '100%', height: 'auto' }}
+                  />
+                )
+              }
+
+              return (
+                <p
+                  key={segment.id}
+                  style={{
+                    margin: 0,
+                  }}
+                >
+                  {segment.text}
+                </p>
+              )
             })}
           </div>
         </article>
