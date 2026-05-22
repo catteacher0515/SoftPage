@@ -33,6 +33,7 @@ export function SoftPageEditor() {
   const [measuredSegments, setMeasuredSegments] = useState<MeasuredSegment[]>([])
   const [previewWidth, setPreviewWidth] = useState(0)
   const [isExporting, setIsExporting] = useState(false)
+  const [exportError, setExportError] = useState<string | null>(null)
 
   useEffect(() => {
     const measureRoot = measureRootRef.current
@@ -94,18 +95,32 @@ export function SoftPageEditor() {
   }
 
   const handleExportPages = async () => {
-    if (pages.length === 0 || isExporting) return
+    if (isExporting) return
+
+    setExportError(null)
+
+    if (pages.length === 0) {
+      setExportError('当前没有可导出的页面。')
+      return
+    }
 
     const pageElements = pages
       .map((page) => pageElementsRef.current.get(page.id))
       .filter((element): element is HTMLElement => element !== undefined)
 
-    if (pageElements.length !== pages.length) return
+    if (pageElements.length !== pages.length) {
+      setExportError('预览页面还未准备完成，请稍后重试。')
+      return
+    }
 
     setIsExporting(true)
 
     try {
       await exportPagesAsPng(pageElements)
+    } catch (error) {
+      setExportError(
+        error instanceof Error ? error.message : '导出失败，请重试。',
+      )
     } finally {
       setIsExporting(false)
     }
@@ -117,6 +132,7 @@ export function SoftPageEditor() {
     if (!file) return
 
     clearUploadError()
+    setExportError(null)
 
     if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
       setImageUploadError('只支持 JPEG、PNG、WebP 和 GIF 图片。')
@@ -159,6 +175,7 @@ export function SoftPageEditor() {
             aria-label="正文"
             value={activeTextBlock?.value ?? ''}
             onChange={(event) => updateTextBlock(event.target.value)}
+            disabled={isExporting}
             style={{ display: 'block', width: '100%', minHeight: 160 }}
           />
         </label>
@@ -168,18 +185,21 @@ export function SoftPageEditor() {
             aria-label="插入图片"
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"
+            disabled={isExporting}
             onChange={(event) => {
               void handleImageUpload(event)
             }}
           />
         </label>
         {uploadError ? <p role="alert">{uploadError}</p> : null}
+        {exportError ? <p role="alert">{exportError}</p> : null}
         <label>
           fontSize
           <input
             aria-label="fontSize"
             type="number"
             value={typography.fontSize}
+            disabled={isExporting}
             onChange={(event) =>
               updateTypographyFieldFromInput(
                 'fontSize',
@@ -195,6 +215,7 @@ export function SoftPageEditor() {
             type="number"
             step="0.1"
             value={typography.lineHeight}
+            disabled={isExporting}
             onChange={(event) =>
               updateTypographyFieldFromInput(
                 'lineHeight',
@@ -209,6 +230,7 @@ export function SoftPageEditor() {
             aria-label="fontWeight"
             type="number"
             value={typography.fontWeight}
+            disabled={isExporting}
             onChange={(event) =>
               updateTypographyFieldFromInput(
                 'fontWeight',
@@ -223,6 +245,7 @@ export function SoftPageEditor() {
             aria-label="paragraphSpacing"
             type="number"
             value={typography.paragraphSpacing}
+            disabled={isExporting}
             onChange={(event) =>
               updateTypographyFieldFromInput(
                 'paragraphSpacing',
@@ -237,6 +260,7 @@ export function SoftPageEditor() {
             aria-label="pagePadding"
             type="number"
             value={typography.pagePadding}
+            disabled={isExporting}
             onChange={(event) =>
               updateTypographyFieldFromInput(
                 'pagePadding',
@@ -245,11 +269,14 @@ export function SoftPageEditor() {
             }
           />
         </label>
-        <button type="button" onClick={() => void handleExportPages()} disabled={pages.length === 0 || isExporting}>
+        <button type="button" onClick={() => void handleExportPages()} disabled={isExporting}>
           {isExporting ? '导出中…' : '导出 PNG'}
         </button>
       </aside>
       <section style={{ padding: typography.pagePadding }}>
+        {pages.length === 0 ? (
+          <p role="status">暂无可预览内容，请先输入正文或插入图片。</p>
+        ) : null}
         <PageCanvas pages={pages} typography={typography} onPageRef={handlePageRef} />
         <div
           ref={measureRootRef}
