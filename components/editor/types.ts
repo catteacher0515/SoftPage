@@ -20,3 +20,5 @@ export type TypographyConfig = {
   paragraphSpacing: number
   pagePadding: number
 }
+
+export type TypographyField = keyof TypographyConfig

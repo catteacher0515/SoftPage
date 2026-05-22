@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { Block, TypographyConfig } from './types'
+import type { Block, TypographyConfig, TypographyField } from './types'
 
 const defaultTypography: TypographyConfig = {
   fontSize: 22,
@@ -16,9 +16,34 @@ const initialBlocks: Block[] = [
 export function useEditorState() {
   const [blocks, setBlocks] = useState<Block[]>(initialBlocks)
   const [typography, setTypography] = useState(defaultTypography)
+  const activeTextBlock = blocks.find((block) => block.type === 'text') ?? null
+
+  const updateTextBlock = (value: string) => {
+    if (!activeTextBlock) return
+    setBlocks((currentBlocks) =>
+      currentBlocks.map((block) =>
+        block.id === activeTextBlock.id ? { ...block, value } : block,
+      ),
+    )
+  }
+
+  const updateTypographyField = (field: TypographyField, value: number) => {
+    setTypography((currentTypography) => ({
+      ...currentTypography,
+      [field]: value,
+    }))
+  }
 
   return useMemo(
-    () => ({ blocks, setBlocks, typography, setTypography }),
-    [blocks, typography],
+    () => ({
+      activeTextBlock,
+      blocks,
+      setBlocks,
+      typography,
+      setTypography,
+      updateTextBlock,
+      updateTypographyField,
+    }),
+    [activeTextBlock, blocks, typography],
   )
 }
