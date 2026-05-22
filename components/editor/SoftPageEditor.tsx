@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { exportPagesAsPng } from '../export/export-pages'
 import { PageCanvas } from '../preview/PageCanvas'
 import { paginateSegments, type MeasuredSegment } from '../preview/pagination'
 import { useEditorState } from './use-editor-state'
@@ -28,8 +29,10 @@ export function SoftPageEditor() {
     updateTypographyFieldFromInput,
   } = useEditorState()
   const measureRootRef = useRef<HTMLDivElement | null>(null)
+  const pageElementsRef = useRef(new Map<string, HTMLElement>())
   const [measuredSegments, setMeasuredSegments] = useState<MeasuredSegment[]>([])
   const [previewWidth, setPreviewWidth] = useState(0)
+  const [isExporting, setIsExporting] = useState(false)
 
   useEffect(() => {
     const measureRoot = measureRootRef.current
@@ -80,6 +83,33 @@ export function SoftPageEditor() {
       ? paginateSegments(measuredSegments, availableHeight, typography.paragraphSpacing)
       : []
   }, [measuredSegments, previewWidth, typography.paragraphSpacing, typography.pagePadding])
+
+  const handlePageRef = (pageId: string, element: HTMLElement | null) => {
+    if (element) {
+      pageElementsRef.current.set(pageId, element)
+      return
+    }
+
+    pageElementsRef.current.delete(pageId)
+  }
+
+  const handleExportPages = async () => {
+    if (pages.length === 0 || isExporting) return
+
+    const pageElements = pages
+      .map((page) => pageElementsRef.current.get(page.id))
+      .filter((element): element is HTMLElement => element !== undefined)
+
+    if (pageElements.length !== pages.length) return
+
+    setIsExporting(true)
+
+    try {
+      await exportPagesAsPng(pageElements)
+    } finally {
+      setIsExporting(false)
+    }
+  }
 
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -215,9 +245,12 @@ export function SoftPageEditor() {
             }
           />
         </label>
+        <button type="button" onClick={() => void handleExportPages()} disabled={pages.length === 0 || isExporting}>
+          {isExporting ? '导出中…' : '导出 PNG'}
+        </button>
       </aside>
       <section style={{ padding: typography.pagePadding }}>
-        <PageCanvas pages={pages} typography={typography} />
+        <PageCanvas pages={pages} typography={typography} onPageRef={handlePageRef} />
         <div
           ref={measureRootRef}
           aria-hidden="true"

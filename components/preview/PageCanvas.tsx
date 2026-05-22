@@ -1,17 +1,27 @@
+import { type RefCallback } from 'react'
 import type { TypographyConfig } from '../editor/types'
 import type { PaginatedPage } from './pagination'
 
 type PageCanvasProps = {
   pages: PaginatedPage[]
   typography: TypographyConfig
+  onPageRef?: (pageId: string, element: HTMLElement | null) => void
 }
 
-export function PageCanvas({ pages, typography }: PageCanvasProps) {
+export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
+  const createPageRef =
+    (pageId: string): RefCallback<HTMLElement> =>
+    (element) => {
+      onPageRef?.(pageId, element)
+    }
+
   return (
     <div style={{ display: 'grid', gap: 24, justifyItems: 'start' }}>
       {pages.map((page) => (
         <article
           key={page.id}
+          ref={createPageRef(page.id)}
+          data-preview-page={page.id}
           style={{
             width: 'min(100%, 360px)',
             aspectRatio: '3 / 4',
