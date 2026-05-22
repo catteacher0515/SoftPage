@@ -18,6 +18,8 @@ export type UploadedImage = {
   alt: string
 }
 
+export type UploadError = string | null
+
 export type TypographyConfig = {
   fontSize: number
   lineHeight: number

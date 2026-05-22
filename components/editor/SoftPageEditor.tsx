@@ -3,13 +3,24 @@
 import type { ChangeEvent } from 'react'
 import { useEditorState } from './use-editor-state'
 
+const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024
+const ACCEPTED_IMAGE_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+])
+
 export function SoftPageEditor() {
   const {
+    clearUploadError,
     activeTextBlock,
     activeTextBlockId,
     blocks,
     insertImageBlockAfterActiveTextBlock,
+    setImageUploadError,
     selectTextBlock,
+    uploadError,
     typography,
     updateTextBlock,
     updateTypographyFieldFromInput,
@@ -20,14 +31,32 @@ export function SoftPageEditor() {
 
     if (!file) return
 
-    const src = await readFileAsDataUrl(file)
+    clearUploadError()
 
-    insertImageBlockAfterActiveTextBlock({
-      src,
-      alt: file.name,
-    })
+    if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
+      setImageUploadError('只支持 JPEG、PNG、WebP 和 GIF 图片。')
+      event.target.value = ''
+      return
+    }
 
-    event.target.value = ''
+    if (file.size > MAX_IMAGE_SIZE_BYTES) {
+      setImageUploadError('图片不能超过 8MB。')
+      event.target.value = ''
+      return
+    }
+
+    try {
+      const src = await readFileAsDataUrl(file)
+
+      insertImageBlockAfterActiveTextBlock({
+        src,
+        alt: file.name,
+      })
+    } catch {
+      setImageUploadError('图片读取失败，请重试。')
+    } finally {
+      event.target.value = ''
+    }
   }
 
   return (
@@ -53,12 +82,13 @@ export function SoftPageEditor() {
           <input
             aria-label="插入图片"
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp,image/gif"
             onChange={(event) => {
               void handleImageUpload(event)
             }}
           />
         </label>
+        {uploadError ? <p role="alert">{uploadError}</p> : null}
         <label>
           fontSize
           <input

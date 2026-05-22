@@ -5,6 +5,7 @@ import type {
   TypographyConfig,
   TypographyField,
   UploadedImage,
+  UploadError,
 } from './types'
 
 const defaultTypography: TypographyConfig = {
@@ -25,6 +26,7 @@ export function useEditorState() {
     initialBlocks[0]?.id ?? '',
   )
   const [typography, setTypography] = useState(defaultTypography)
+  const [uploadError, setUploadError] = useState<UploadError>(null)
   const activeTextBlock =
     blocks.find(
       (block): block is TextBlock =>
@@ -73,6 +75,14 @@ export function useEditorState() {
     })
   }
 
+  const clearUploadError = () => {
+    setUploadError(null)
+  }
+
+  const setImageUploadError = (message: string) => {
+    setUploadError(message)
+  }
+
   const updateTypographyField = (field: TypographyField, value: number) => {
     setTypography((currentTypography) => ({
       ...currentTypography,
@@ -95,10 +105,13 @@ export function useEditorState() {
       blocks,
       insertImageBlockAfterActiveTextBlock,
       selectTextBlock,
+      clearUploadError,
+      uploadError,
       typography,
+      setImageUploadError,
       updateTextBlock,
       updateTypographyFieldFromInput,
     }),
-    [activeTextBlock, activeTextBlockId, blocks, typography],
+    [activeTextBlock, activeTextBlockId, blocks, typography, uploadError],
   )
 }
