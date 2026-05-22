@@ -1,6 +1,9 @@
 'use client'
 
-import type { ChangeEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { BlockRenderer } from '../preview/BlockRenderer'
+import { PageCanvas } from '../preview/PageCanvas'
+import { paginateBlocks, type MeasuredBlock } from '../preview/pagination'
 import { useEditorState } from './use-editor-state'
 
 const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024
@@ -25,6 +28,52 @@ export function SoftPageEditor() {
     updateTextBlock,
     updateTypographyFieldFromInput,
   } = useEditorState()
+  const measureRootRef = useRef<HTMLDivElement | null>(null)
+  const [measuredBlocks, setMeasuredBlocks] = useState<MeasuredBlock[]>([])
+  const [previewWidth, setPreviewWidth] = useState(0)
+
+  useEffect(() => {
+    const measureRoot = measureRootRef.current
+
+    if (!measureRoot) return
+
+    const updateMeasurements = () => {
+      const items = Array.from(
+        measureRoot.querySelectorAll<HTMLElement>('[data-measure-block]'),
+      ).map((element) => {
+        const blockId = element.dataset.blockId ?? ''
+        const block = blocks.find((currentBlock) => currentBlock.id === blockId)
+
+        return block
+          ? {
+              id: block.id,
+              block,
+              height: element.getBoundingClientRect().height,
+            }
+          : null
+      })
+
+      setMeasuredBlocks(items.filter((item): item is MeasuredBlock => item !== null))
+      setPreviewWidth(measureRoot.getBoundingClientRect().width)
+    }
+
+    updateMeasurements()
+
+    const resizeObserver = new ResizeObserver(updateMeasurements)
+    resizeObserver.observe(measureRoot)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [blocks, typography])
+
+  const pages = useMemo(() => {
+    const availableHeight = previewWidth > 0 ? (previewWidth * 4) / 3 - 64 : 0
+
+    return availableHeight > 0
+      ? paginateBlocks(measuredBlocks, availableHeight)
+      : []
+  }, [measuredBlocks, previewWidth])
 
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -162,56 +211,41 @@ export function SoftPageEditor() {
         </label>
       </aside>
       <section style={{ padding: typography.pagePadding }}>
-        <article
+        <PageCanvas pages={pages} typography={typography} />
+        <div
+          ref={measureRootRef}
+          aria-hidden="true"
           style={{
-            fontSize: typography.fontSize,
-            lineHeight: typography.lineHeight,
-            fontWeight: typography.fontWeight,
-            display: 'grid',
-            gap: typography.paragraphSpacing,
+            position: 'absolute',
+            left: -10000,
+            top: 0,
+            width: 'min(100%, 360px)',
+            visibility: 'hidden',
+            pointerEvents: 'none',
           }}
         >
-          {blocks.map((block) => {
-            if (block.type === 'image') {
-              return (
-                <img
-                  key={block.id}
-                  src={block.src}
-                  alt={block.alt}
-                  style={{ display: 'block', maxWidth: '100%' }}
-                />
-              )
-            }
-
-            const paragraphs = block.value.split('\n')
-
-            return (
-              <div
+          <article
+            style={{
+              fontSize: typography.fontSize,
+              lineHeight: typography.lineHeight,
+              fontWeight: typography.fontWeight,
+              display: 'grid',
+              gap: typography.paragraphSpacing,
+              width: '100%',
+            }}
+          >
+            {blocks.map((block) => (
+              <BlockRenderer
                 key={block.id}
-                onClick={() => selectTextBlock(block.id)}
-                style={{
-                  outline:
-                    block.id === activeTextBlockId ? '2px solid #111' : '2px solid transparent',
-                  outlineOffset: 6,
-                  cursor: 'text',
-                }}
-              >
-                {paragraphs.map((paragraph, index) => (
-                  <p
-                    key={`${block.id}-${index}-${paragraph}`}
-                    style={{
-                      margin: 0,
-                      marginBottom:
-                        index === paragraphs.length - 1 ? 0 : typography.paragraphSpacing,
-                    }}
-                  >
-                    {paragraph === '' ? '\u00a0' : paragraph}
-                  </p>
-                ))}
-              </div>
-            )
-          })}
-        </article>
+                block={block}
+                typography={typography}
+                measure
+                active={block.id === activeTextBlockId}
+                onSelect={() => selectTextBlock(block.id)}
+              />
+            ))}
+          </article>
+        </div>
       </section>
     </main>
   )
