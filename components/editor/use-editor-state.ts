@@ -1,5 +1,11 @@
 import { useMemo, useState } from 'react'
-import type { Block, TypographyConfig, TypographyField } from './types'
+import type {
+  Block,
+  TextBlock,
+  TypographyConfig,
+  TypographyField,
+  UploadedImage,
+} from './types'
 
 const defaultTypography: TypographyConfig = {
   fontSize: 22,
@@ -15,8 +21,17 @@ const initialBlocks: Block[] = [
 
 export function useEditorState() {
   const [blocks, setBlocks] = useState<Block[]>(initialBlocks)
+  const [activeTextBlockId, setActiveTextBlockId] = useState<TextBlock['id']>(
+    initialBlocks[0]?.id ?? '',
+  )
   const [typography, setTypography] = useState(defaultTypography)
-  const activeTextBlock = blocks.find((block) => block.type === 'text') ?? null
+  const activeTextBlock =
+    blocks.find(
+      (block): block is TextBlock =>
+        block.type === 'text' && block.id === activeTextBlockId,
+    ) ??
+    blocks.find((block): block is TextBlock => block.type === 'text') ??
+    null
 
   const updateTextBlock = (value: string) => {
     if (!activeTextBlock) return
@@ -25,6 +40,37 @@ export function useEditorState() {
         block.id === activeTextBlock.id ? { ...block, value } : block,
       ),
     )
+  }
+
+  const selectTextBlock = (blockId: TextBlock['id']) => {
+    setActiveTextBlockId(blockId)
+  }
+
+  const insertImageBlockAfterActiveTextBlock = ({ src, alt }: UploadedImage) => {
+    if (!activeTextBlock) return
+
+    setBlocks((currentBlocks) => {
+      const activeIndex = currentBlocks.findIndex(
+        (block) => block.id === activeTextBlock.id,
+      )
+
+      if (activeIndex === -1) {
+        return currentBlocks
+      }
+
+      const imageBlock: Block = {
+        id: `image-${Date.now()}`,
+        type: 'image',
+        src,
+        alt,
+      }
+
+      return [
+        ...currentBlocks.slice(0, activeIndex + 1),
+        imageBlock,
+        ...currentBlocks.slice(activeIndex + 1),
+      ]
+    })
   }
 
   const updateTypographyField = (field: TypographyField, value: number) => {
@@ -45,14 +91,14 @@ export function useEditorState() {
   return useMemo(
     () => ({
       activeTextBlock,
+      activeTextBlockId,
       blocks,
-      setBlocks,
+      insertImageBlockAfterActiveTextBlock,
+      selectTextBlock,
       typography,
-      setTypography,
       updateTextBlock,
-      updateTypographyField,
       updateTypographyFieldFromInput,
     }),
-    [activeTextBlock, blocks, typography],
+    [activeTextBlock, activeTextBlockId, blocks, typography],
   )
 }

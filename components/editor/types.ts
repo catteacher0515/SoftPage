@@ -13,6 +13,11 @@ export type ImageBlock = {
 
 export type Block = TextBlock | ImageBlock
 
+export type UploadedImage = {
+  src: string
+  alt: string
+}
+
 export type TypographyConfig = {
   fontSize: number
   lineHeight: number
