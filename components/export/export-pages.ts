@@ -20,7 +20,7 @@ export async function exportPagesAsPngZip(pageElements: HTMLElement[]) {
     const pageElement = pageElements[index]
     try {
       const canvas = await html2canvas(pageElement, {
-        backgroundColor: '#F6F1E8',
+        backgroundColor: null,
         scale: EXPORT_SCALE,
         useCORS: true,
       })

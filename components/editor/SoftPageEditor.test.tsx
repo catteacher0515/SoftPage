@@ -2,6 +2,7 @@ import React from 'react'
 import { afterEach, test, expect, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { SoftPageEditor } from './SoftPageEditor'
+import html2canvas from 'html2canvas'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -23,7 +24,7 @@ test('uses the updated default typography controls', () => {
   render(<SoftPageEditor />)
 
   expect(screen.getAllByLabelText('fontSize')[0]).toHaveValue(15)
-  expect(screen.getAllByLabelText('lineHeight')[0]).toHaveValue(1.5)
+  expect(screen.getAllByLabelText('lineHeight')[0]).toHaveValue(1.62)
   expect(screen.getAllByLabelText('paragraphSpacing')[0]).toHaveValue(15)
   expect(screen.getAllByLabelText('fontWeight')[0]).toHaveValue(400)
 })
@@ -87,4 +88,18 @@ test('exports all pages as a zip package', async () => {
   expect(anchor.download).toBe('softpage-export.zip')
   expect(anchor.href).toBe('blob:softpage-export')
   expect(clickSpy).toHaveBeenCalledTimes(1)
+})
+
+test('exports pages with their live background instead of forcing the old beige fill', async () => {
+  const { exportPagesAsPngZip } = await import('../export/export-pages')
+  const page = document.createElement('article')
+
+  await exportPagesAsPngZip([page])
+
+  expect(html2canvas).toHaveBeenCalledWith(
+    page,
+    expect.objectContaining({
+      backgroundColor: null,
+    }),
+  )
 })

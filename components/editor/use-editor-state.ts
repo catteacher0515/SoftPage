@@ -9,7 +9,7 @@ import type {
 
 const defaultTypography: TypographyConfig = {
   fontSize: 15,
-  lineHeight: 1.5,
+  lineHeight: 1.62,
   fontWeight: 400,
   paragraphSpacing: 15,
   pagePadding: 30,

@@ -72,3 +72,23 @@ test('keeps a two-page layout when the trailing page is already within a comfort
   ])
   expect(pages[1]?.segments.map((segment) => segment.id)).toEqual(['d', 'e'])
 })
+
+test('avoids creating an overly airy non-final page when the next page can absorb more content', () => {
+  const pages = paginateSegments(
+    [
+      createParagraphSegment('a', 85),
+      createParagraphSegment('b', 85),
+      createParagraphSegment('c', 85),
+      createParagraphSegment('d', 85),
+      createParagraphSegment('e', 85),
+      createParagraphSegment('f', 85),
+      createParagraphSegment('g', 85),
+    ],
+    580,
+    15,
+  )
+
+  expect(pages).toHaveLength(2)
+  expect(pages[0]?.segments.length).toBeGreaterThanOrEqual(4)
+  expect(pages[1]?.segments.length).toBeLessThanOrEqual(3)
+})

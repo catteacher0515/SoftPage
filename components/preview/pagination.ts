@@ -273,7 +273,11 @@ function scorePageComposition(
   }
 
   if (!isFinalPage && whitespace > config.comfortableWhitespaceMax * 1.45) {
-    score -= 45
+    score -= 95
+  }
+
+  if (!isFinalPage && whitespace > config.comfortableWhitespaceMax * 1.9) {
+    score -= 135
   }
 
   if (isFinalPage && whitespace > config.comfortableWhitespaceMax * 2) {
@@ -314,6 +318,13 @@ function scorePageTransition(
     if (currentSegmentCount >= 2) {
       score -= 40
     }
+  }
+
+  if (
+    currentWhitespace > config.comfortableWhitespaceMax * 1.45 &&
+    nextPlan.firstWhitespace < currentWhitespace
+  ) {
+    score -= 90
   }
 
   return score

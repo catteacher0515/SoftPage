@@ -427,7 +427,7 @@ export function SoftPageEditor() {
         >
           <article
             style={{
-              fontFamily: 'var(--font-body-stack)',
+              fontFamily: 'var(--font-reading-stack)',
               textRendering: 'optimizeLegibility',
               fontFeatureSettings: '"liga" 1, "kern" 1',
               fontSize: typography.fontSize,
@@ -436,6 +436,7 @@ export function SoftPageEditor() {
               display: 'grid',
               gap: typography.paragraphSpacing,
               width: '100%',
+              maxWidth: '30ch',
             }}
           >
             {blocks.flatMap((block) => {
@@ -570,6 +571,7 @@ export function SoftPageEditor() {
                     overflowWrap: 'anywhere',
                     wordBreak: 'break-word',
                     whiteSpace: 'pre-wrap',
+                    letterSpacing: '0.01em',
                   }}
                 >
                   {paragraph === '' ? '\u00a0' : paragraph}

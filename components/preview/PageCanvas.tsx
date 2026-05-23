@@ -43,7 +43,7 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
             boxShadow: '0 24px 70px rgba(17, 11, 6, 0.26)',
             border: '1px solid rgba(17, 17, 17, 0.08)',
             borderRadius: 10,
-            fontFamily: "var(--font-body-stack)",
+            fontFamily: 'var(--font-reading-stack)',
             textRendering: 'optimizeLegibility',
             fontFeatureSettings: '"liga" 1, "kern" 1',
             fontSize: typography.fontSize,
@@ -51,7 +51,15 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
             fontWeight: typography.fontWeight,
           }}
         >
-          <div style={{ display: 'grid', gap: typography.paragraphSpacing, width: '100%' }}>
+          <div
+            style={{
+              display: 'grid',
+              gap: typography.paragraphSpacing,
+              width: '100%',
+              maxWidth: '30ch',
+              justifySelf: 'stretch',
+            }}
+          >
             {page.segments.map((segment) => {
               if (segment.kind === 'image') {
                 const imageBlock = segment.block as Extract<typeof segment.block, { type: 'image' }>
@@ -61,7 +69,13 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
                     key={segment.id}
                     src={imageBlock.src}
                     alt={imageBlock.alt}
-                    style={{ display: 'block', maxWidth: '100%', width: '100%', height: 'auto' }}
+                    style={{
+                      display: 'block',
+                      maxWidth: '100%',
+                      width: '100%',
+                      height: 'auto',
+                      borderRadius: 6,
+                    }}
                   />
                 )
               }
@@ -169,6 +183,7 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
                     overflowWrap: 'anywhere',
                     wordBreak: 'break-word',
                     whiteSpace: 'pre-wrap',
+                    letterSpacing: '0.01em',
                   }}
                 >
                   {segment.text}

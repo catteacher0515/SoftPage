@@ -12,7 +12,8 @@
   --shadow-soft: 0 20px 60px rgba(66, 43, 20, 0.08);
   --shadow-stage: 0 40px 120px rgba(49, 28, 9, 0.18);
   --font-ui-stack: var(--font-ui), 'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', sans-serif;
-  --font-body-stack: var(--font-body), 'Source Han Serif SC', 'Songti SC', 'STSong', 'Noto Serif SC', serif;
+  --font-body-stack: 'Songti SC', 'STSong', var(--font-body), 'Source Han Serif SC', 'Noto Serif SC', serif;
+  --font-reading-stack: 'Songti SC', 'STSong', 'Source Han Serif SC', var(--font-body), 'Noto Serif SC', serif;
   --font-mono-stack: var(--font-mono), 'JetBrains Mono', 'SFMono-Regular', 'Menlo', monospace;
 }
 
