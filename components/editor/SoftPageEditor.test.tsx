@@ -11,9 +11,11 @@ test('renders editorial workspace sections and export action', () => {
   render(<SoftPageEditor />)
 
   expect(screen.getByText('SoftPage')).toBeInTheDocument()
-  expect(screen.getByText('文字设置')).toBeInTheDocument()
+  expect(screen.getByText('内容来源')).toBeInTheDocument()
+  expect(screen.getByText('内容结构')).toBeInTheDocument()
   expect(screen.getByText('页面设置')).toBeInTheDocument()
   expect(screen.getByText('内容预览')).toBeInTheDocument()
+  expect(screen.getByText('原稿导入')).toBeInTheDocument()
   expect(screen.getByRole('button', { name: '导出 ZIP' })).toBeInTheDocument()
 })
 
@@ -22,7 +24,7 @@ test('uses the updated default typography controls', () => {
 
   expect(screen.getAllByLabelText('fontSize')[0]).toHaveValue(15)
   expect(screen.getAllByLabelText('lineHeight')[0]).toHaveValue(1.5)
-  expect(screen.getAllByLabelText('paragraphSpacing')[0]).toHaveValue(0)
+  expect(screen.getAllByLabelText('paragraphSpacing')[0]).toHaveValue(15)
   expect(screen.getAllByLabelText('fontWeight')[0]).toHaveValue(500)
 })
 

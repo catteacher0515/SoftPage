@@ -1,36 +1,39 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
+import { parseMarkdownDocument } from './markdown'
 import { exportPagesAsPng } from '../export/export-pages'
 import { PageCanvas } from '../preview/PageCanvas'
 import {
   PAGE_ASPECT_RATIO,
-  PAGE_HEADER_HEIGHT,
+  PAGE_BOTTOM_SAFE_SPACE,
   PAGE_MAX_WIDTH,
 } from '../preview/constants'
 import { paginateSegments, type MeasuredSegment } from '../preview/pagination'
 import { useEditorState } from './use-editor-state'
 
-const MAX_IMAGE_SIZE_BYTES = 8 * 1024 * 1024
-const ACCEPTED_IMAGE_TYPES = new Set([
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
+const MAX_MARKDOWN_SIZE_BYTES = 2 * 1024 * 1024
+const MAX_ASSET_SIZE_BYTES = 8 * 1024 * 1024
+const ACCEPTED_MARKDOWN_TYPES = new Set([
+  'text/markdown',
+  'text/plain',
+  'application/octet-stream',
+  '',
 ])
+const ACCEPTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 
 export function SoftPageEditor() {
   const {
     clearUploadError,
-    activeTextBlock,
-    activeTextBlockId,
     blocks,
-    insertImageBlockAfterActiveTextBlock,
-    setImageUploadError,
-    selectTextBlock,
+    clearSourceError,
+    replaceBlocks,
+    setSourceStatusError,
+    setUploadStatusError,
+    sourceError,
+    sourceName,
     uploadError,
     typography,
-    updateTextBlock,
     updateTypographyFieldFromInput,
   } = useEditorState()
   const measureRootRef = useRef<HTMLDivElement | null>(null)
@@ -39,6 +42,7 @@ export function SoftPageEditor() {
   const [previewWidth, setPreviewWidth] = useState(0)
   const [isExporting, setIsExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
+  const [missingAssets, setMissingAssets] = useState<string[]>([])
 
   useEffect(() => {
     const measureRoot = measureRootRef.current
@@ -58,7 +62,16 @@ export function SoftPageEditor() {
               id: segmentId,
               blockId,
               block,
-              kind: block.type === 'image' ? 'image' : 'paragraph',
+              kind:
+                block.type === 'image'
+                  ? 'image'
+                  : block.type === 'table'
+                    ? 'table'
+                    : block.type === 'missing-image'
+                      ? 'missing-image'
+                      : block.type === 'divider'
+                        ? 'divider'
+                      : 'paragraph',
               text: element.dataset.segmentText ?? '',
               height: element.getBoundingClientRect().height,
             }
@@ -85,7 +98,7 @@ export function SoftPageEditor() {
     const pageWidth = previewWidth > 0 ? Math.min(previewWidth, PAGE_MAX_WIDTH) : 0
     const availableHeight =
       pageWidth > 0
-        ? pageWidth * PAGE_ASPECT_RATIO - typography.pagePadding * 2 - PAGE_HEADER_HEIGHT - 18
+        ? pageWidth * PAGE_ASPECT_RATIO - typography.pagePadding * 2 - PAGE_BOTTOM_SAFE_SPACE
         : 0
 
     return availableHeight > 0
@@ -134,35 +147,63 @@ export function SoftPageEditor() {
     }
   }
 
-  const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
+  const handleMarkdownImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? [])
 
-    if (!file) return
+    if (files.length === 0) return
 
     clearUploadError()
+    clearSourceError()
     setExportError(null)
+    setMissingAssets([])
 
-    if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
-      setImageUploadError('只支持 JPEG、PNG、WebP 和 GIF 图片。')
+    const markdownFile = files.find((file) => isMarkdownFile(file))
+
+    if (!markdownFile) {
+      setSourceStatusError('请至少选择一个 Markdown 文件。')
       event.target.value = ''
       return
     }
 
-    if (file.size > MAX_IMAGE_SIZE_BYTES) {
-      setImageUploadError('图片不能超过 8MB。')
+    if (markdownFile.size > MAX_MARKDOWN_SIZE_BYTES) {
+      setSourceStatusError('Markdown 文件不能超过 2MB。')
       event.target.value = ''
       return
     }
 
     try {
-      const src = await readFileAsDataUrl(file)
+      const markdown = await markdownFile.text()
+      const assetFiles = files.filter((file) => file !== markdownFile)
+      const assetEntries = await Promise.all(
+        assetFiles.map(async (file) => {
+          if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
+            throw new Error(`只支持 JPEG、PNG、WebP 和 GIF 图片：${file.name}`)
+          }
 
-      insertImageBlockAfterActiveTextBlock({
-        src,
-        alt: file.name,
-      })
-    } catch {
-      setImageUploadError('图片读取失败，请重试。')
+          if (file.size > MAX_ASSET_SIZE_BYTES) {
+            throw new Error(`图片不能超过 8MB：${file.name}`)
+          }
+
+          const relativePath = getRelativePathFromFile(file)
+
+          return [relativePath, await readFileAsDataUrl(file)] as const
+        }),
+      )
+      const assetMap = Object.fromEntries(assetEntries)
+      const parsed = parseMarkdownDocument(markdown, assetMap)
+
+      replaceBlocks(parsed.blocks, markdownFile.name)
+      setMissingAssets(parsed.missingAssetPaths)
+
+      if (parsed.missingAssetPaths.length > 0) {
+        setUploadStatusError(
+          `有 ${parsed.missingAssetPaths.length} 张图片未匹配到本地附件。`,
+        )
+      }
+    } catch (error) {
+      setSourceStatusError(
+        error instanceof Error ? error.message : 'Markdown 导入失败，请重试。',
+      )
     } finally {
       event.target.value = ''
     }
@@ -184,39 +225,58 @@ export function SoftPageEditor() {
 
         <section className="panel-card">
           <div className="panel-head">
-            <p className="panel-eyebrow">文字设置</p>
-            <h2>正文编辑</h2>
+            <p className="panel-eyebrow">内容来源</p>
+            <h2>原稿导入</h2>
           </div>
-          <label className="field-stack">
-            <span className="field-label">正文</span>
-            <textarea
-              aria-label="正文"
-              value={activeTextBlock?.value ?? ''}
-              onChange={(event) => updateTextBlock(event.target.value)}
+          <label className="upload-field">
+            <span className="upload-copy">导入 Markdown 和附件</span>
+            <span className="upload-hint">
+              选择一个 `.md` 文件，可同时附带同目录图片附件。
+            </span>
+            <input
+              aria-label="导入 Markdown"
+              type="file"
+              multiple
+              accept=".md,text/markdown,text/plain,image/jpeg,image/png,image/webp,image/gif"
               disabled={isExporting}
-              className="editor-textarea"
+              onChange={(event) => {
+                void handleMarkdownImport(event)
+              }}
             />
           </label>
+          <div className="source-summary">
+            <p className="source-summary__label">当前原稿</p>
+            <p className="source-summary__value">{sourceName}</p>
+          </div>
+          <div className="source-summary">
+            <p className="source-summary__label">内容块</p>
+            <p className="source-summary__value">{blocks.length} 个</p>
+          </div>
         </section>
 
         <section className="panel-card">
           <div className="panel-head">
-            <p className="panel-eyebrow">内容素材</p>
-            <h2>图片插入</h2>
+            <p className="panel-eyebrow">内容结构</p>
+            <h2>解析结果</h2>
           </div>
-          <label className="upload-field">
-            <span className="upload-copy">插入图片</span>
-            <span className="upload-hint">JPEG / PNG / WebP / GIF，8MB 以内</span>
-            <input
-              aria-label="插入图片"
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              disabled={isExporting}
-              onChange={(event) => {
-                void handleImageUpload(event)
-              }}
-            />
-          </label>
+          <div className="content-outline">
+            {blocks.map((block, index) => (
+              <div key={block.id} className="content-outline__item">
+                <span className="content-outline__index">{String(index + 1).padStart(2, '0')}</span>
+                <span className="content-outline__text">
+                  {block.type === 'image'
+                    ? `图片 · ${block.alt || '未命名图片'}`
+                    : block.type === 'missing-image'
+                      ? `缺图 · ${block.path}`
+                      : block.type === 'divider'
+                        ? '分割线'
+                      : block.type === 'table'
+                        ? `表格 · ${block.rows.length} 行`
+                        : block.value.slice(0, 28) || '空白段落'}
+                </span>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section className="panel-card">
@@ -321,7 +381,13 @@ export function SoftPageEditor() {
         </section>
 
         {uploadError ? <p role="alert" className="status-banner status-banner-danger">{uploadError}</p> : null}
+        {sourceError ? <p role="alert" className="status-banner status-banner-danger">{sourceError}</p> : null}
         {exportError ? <p role="alert" className="status-banner status-banner-danger">{exportError}</p> : null}
+        {missingAssets.length > 0 ? (
+          <p role="status" className="status-banner">
+            未匹配附件：{missingAssets.join('，')}
+          </p>
+        ) : null}
       </aside>
 
       <section className="preview-stage">
@@ -340,7 +406,7 @@ export function SoftPageEditor() {
           {pages.length === 0 ? (
             <div className="empty-state" role="status">
               <p className="empty-state__title">暂无可预览内容</p>
-              <p className="empty-state__copy">先输入正文或插入图片，右侧会自动生成分页画布。</p>
+              <p className="empty-state__copy">先导入 Markdown 原稿，右侧会自动生成分页画布。</p>
             </div>
           ) : (
             <PageCanvas pages={pages} typography={typography} onPageRef={handlePageRef} />
@@ -379,7 +445,106 @@ export function SoftPageEditor() {
                     data-block-id={block.id}
                     src={block.src}
                     alt={block.alt}
-                    style={{ display: 'block', maxWidth: '100%', width: '100%', height: 'auto' }}
+                    style={{
+                      display: 'block',
+                      maxWidth: '100%',
+                      width: '100%',
+                      height: 'auto',
+                      borderRadius: 6,
+                    }}
+                  />,
+                ]
+              }
+
+              if (block.type === 'missing-image') {
+                return [
+                  <div
+                    key={block.id}
+                    data-measure-segment
+                    data-segment-id={`${block.id}-missing-image`}
+                    data-block-id={block.id}
+                    data-segment-text={block.path}
+                    style={{
+                      padding: '14px 16px',
+                      borderRadius: 12,
+                      border: '1px dashed rgba(157, 61, 48, 0.45)',
+                      background: 'rgba(157, 61, 48, 0.08)',
+                      color: '#8f382c',
+                    }}
+                  >
+                    <strong style={{ display: 'block', marginBottom: 6 }}>图片缺失</strong>
+                    <span style={{ overflowWrap: 'anywhere' }}>{block.path}</span>
+                  </div>,
+                ]
+              }
+
+              if (block.type === 'table') {
+                return [
+                  <div
+                    key={block.id}
+                    data-measure-segment
+                    data-segment-id={`${block.id}-table`}
+                    data-block-id={block.id}
+                    data-segment-text={`表格 ${block.rows.length} 行`}
+                    style={{
+                      border: '1px solid rgba(35, 28, 22, 0.12)',
+                      borderRadius: 12,
+                      overflow: 'hidden',
+                      background: 'rgba(255, 252, 247, 0.72)',
+                    }}
+                  >
+                    <table
+                      style={{
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        tableLayout: 'fixed',
+                      }}
+                    >
+                      <tbody>
+                        {block.rows.map((row, rowIndex) => (
+                          <tr key={`${block.id}-row-${rowIndex}`}>
+                            {row.map((cell, cellIndex) => (
+                              <td
+                                key={`${block.id}-cell-${rowIndex}-${cellIndex}`}
+                                style={{
+                                  borderBottom:
+                                    rowIndex === block.rows.length - 1
+                                      ? 'none'
+                                      : '1px solid rgba(35, 28, 22, 0.08)',
+                                  borderRight:
+                                    cellIndex === row.length - 1
+                                      ? 'none'
+                                      : '1px solid rgba(35, 28, 22, 0.08)',
+                                  padding: '10px 12px',
+                                  verticalAlign: 'top',
+                                  overflowWrap: 'anywhere',
+                                  fontWeight: rowIndex === 0 ? 600 : 500,
+                                }}
+                              >
+                                {cell}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>,
+                ]
+              }
+
+              if (block.type === 'divider') {
+                return [
+                  <div
+                    key={block.id}
+                    data-measure-segment
+                    data-segment-id={`${block.id}-divider`}
+                    data-block-id={block.id}
+                    data-segment-text="divider"
+                    style={{
+                      height: 1,
+                      background: 'rgba(35, 28, 22, 0.22)',
+                      margin: '8px 0',
+                    }}
                   />,
                 ]
               }
@@ -393,17 +558,12 @@ export function SoftPageEditor() {
                   data-segment-id={`${block.id}-paragraph-${index}`}
                   data-block-id={block.id}
                   data-segment-text={paragraph === '' ? '\u00a0' : paragraph}
-                  onClick={() => selectTextBlock(block.id)}
                   style={{
                     margin: 0,
-                    marginBottom:
-                      index === paragraphs.length - 1 ? 0 : typography.paragraphSpacing,
-                    outline:
-                      block.id === activeTextBlockId
-                        ? '2px solid #111'
-                        : '2px solid transparent',
-                    outlineOffset: 6,
-                    cursor: 'text',
+                    maxWidth: '100%',
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'break-word',
+                    whiteSpace: 'pre-wrap',
                   }}
                 >
                   {paragraph === '' ? '\u00a0' : paragraph}
@@ -436,4 +596,14 @@ function readFileAsDataUrl(file: File) {
 
     reader.readAsDataURL(file)
   })
+}
+
+function isMarkdownFile(file: File) {
+  return file.name.toLowerCase().endsWith('.md') || ACCEPTED_MARKDOWN_TYPES.has(file.type)
+}
+
+function getRelativePathFromFile(file: File) {
+  const pathLike = 'webkitRelativePath' in file ? file.webkitRelativePath : ''
+
+  return typeof pathLike === 'string' && pathLike !== '' ? pathLike : file.name
 }

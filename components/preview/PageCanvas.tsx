@@ -1,6 +1,6 @@
 import { type RefCallback } from 'react'
 import type { TypographyConfig } from '../editor/types'
-import { PAGE_ASPECT_RATIO, PAGE_HEADER_HEIGHT, PAGE_MAX_WIDTH } from './constants'
+import { PAGE_MAX_WIDTH } from './constants'
 import type { PaginatedPage } from './pagination'
 
 type PageCanvasProps = {
@@ -24,7 +24,7 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
         justifyItems: 'center',
       }}
     >
-      {pages.map((page, index) => (
+      {pages.map((page) => (
         <article
           key={page.id}
           ref={createPageRef(page.id)}
@@ -48,23 +48,6 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
             fontWeight: typography.fontWeight,
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              width: '100%',
-              minHeight: PAGE_HEADER_HEIGHT,
-              marginBottom: 18,
-              fontSize: 11,
-              letterSpacing: '0.18em',
-              textTransform: 'uppercase',
-              color: 'rgba(35, 28, 22, 0.54)',
-            }}
-          >
-            <span>SoftPage Draft</span>
-            <span>{String(index + 1).padStart(2, '0')}</span>
-          </div>
           <div style={{ display: 'grid', gap: typography.paragraphSpacing, width: '100%' }}>
             {page.segments.map((segment) => {
               if (segment.kind === 'image') {
@@ -80,6 +63,97 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
                 )
               }
 
+              if (segment.kind === 'missing-image') {
+                const missingImageBlock = segment.block as Extract<
+                  typeof segment.block,
+                  { type: 'missing-image' }
+                >
+
+                return (
+                  <div
+                    key={segment.id}
+                    style={{
+                      width: '100%',
+                      padding: '14px 16px',
+                      borderRadius: 12,
+                      border: '1px dashed rgba(157, 61, 48, 0.45)',
+                      background: 'rgba(157, 61, 48, 0.08)',
+                      color: '#8f382c',
+                    }}
+                  >
+                    <strong style={{ display: 'block', marginBottom: 6 }}>图片缺失</strong>
+                    <span style={{ overflowWrap: 'anywhere' }}>{missingImageBlock.path}</span>
+                  </div>
+                )
+              }
+
+              if (segment.kind === 'table') {
+                const tableBlock = segment.block as Extract<typeof segment.block, { type: 'table' }>
+
+                return (
+                  <div
+                    key={segment.id}
+                    style={{
+                      width: '100%',
+                      border: '1px solid rgba(35, 28, 22, 0.12)',
+                      borderRadius: 12,
+                      overflow: 'hidden',
+                      background: 'rgba(255, 252, 247, 0.72)',
+                    }}
+                  >
+                    <table
+                      style={{
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        tableLayout: 'fixed',
+                      }}
+                    >
+                      <tbody>
+                        {tableBlock.rows.map((row, rowIndex) => (
+                          <tr key={`${tableBlock.id}-row-${rowIndex}`}>
+                            {row.map((cell, cellIndex) => (
+                              <td
+                                key={`${tableBlock.id}-cell-${rowIndex}-${cellIndex}`}
+                                style={{
+                                  borderBottom:
+                                    rowIndex === tableBlock.rows.length - 1
+                                      ? 'none'
+                                      : '1px solid rgba(35, 28, 22, 0.08)',
+                                  borderRight:
+                                    cellIndex === row.length - 1
+                                      ? 'none'
+                                      : '1px solid rgba(35, 28, 22, 0.08)',
+                                  padding: '10px 12px',
+                                  verticalAlign: 'top',
+                                  overflowWrap: 'anywhere',
+                                  fontWeight: rowIndex === 0 ? 600 : 500,
+                                }}
+                              >
+                                {cell}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              }
+
+              if (segment.kind === 'divider') {
+                return (
+                  <div
+                    key={segment.id}
+                    style={{
+                      width: '100%',
+                      height: 1,
+                      background: 'rgba(35, 28, 22, 0.22)',
+                      margin: '8px 0',
+                    }}
+                  />
+                )
+              }
+
               return (
                 <p
                   key={segment.id}
@@ -88,6 +162,7 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
                     maxWidth: '100%',
                     overflowWrap: 'anywhere',
                     wordBreak: 'break-word',
+                    whiteSpace: 'pre-wrap',
                   }}
                 >
                   {segment.text}

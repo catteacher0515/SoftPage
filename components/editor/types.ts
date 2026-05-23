@@ -11,7 +11,29 @@ export type ImageBlock = {
   alt: string
 }
 
-export type Block = TextBlock | ImageBlock
+export type MissingImageBlock = {
+  id: string
+  type: 'missing-image'
+  path: string
+}
+
+export type TableBlock = {
+  id: string
+  type: 'table'
+  rows: string[][]
+}
+
+export type DividerBlock = {
+  id: string
+  type: 'divider'
+}
+
+export type Block =
+  | TextBlock
+  | ImageBlock
+  | MissingImageBlock
+  | TableBlock
+  | DividerBlock
 
 export type UploadedImage = {
   src: string
@@ -19,6 +41,7 @@ export type UploadedImage = {
 }
 
 export type UploadError = string | null
+export type SourceError = string | null
 
 export type TypographyConfig = {
   fontSize: number

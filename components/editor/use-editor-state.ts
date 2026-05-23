@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react'
 import type {
   Block,
-  TextBlock,
+  SourceError,
   TypographyConfig,
   TypographyField,
-  UploadedImage,
   UploadError,
 } from './types'
 
@@ -12,7 +11,7 @@ const defaultTypography: TypographyConfig = {
   fontSize: 15,
   lineHeight: 1.5,
   fontWeight: 500,
-  paragraphSpacing: 0,
+  paragraphSpacing: 15,
   pagePadding: 40,
 }
 
@@ -22,65 +21,30 @@ const initialBlocks: Block[] = [
 
 export function useEditorState() {
   const [blocks, setBlocks] = useState<Block[]>(initialBlocks)
-  const [activeTextBlockId, setActiveTextBlockId] = useState<TextBlock['id']>(
-    initialBlocks[0]?.id ?? '',
-  )
   const [typography, setTypography] = useState(defaultTypography)
   const [uploadError, setUploadError] = useState<UploadError>(null)
-  const activeTextBlock =
-    blocks.find(
-      (block): block is TextBlock =>
-        block.type === 'text' && block.id === activeTextBlockId,
-    ) ??
-    blocks.find((block): block is TextBlock => block.type === 'text') ??
-    null
+  const [sourceError, setSourceError] = useState<SourceError>(null)
+  const [sourceName, setSourceName] = useState<string>('未导入 Markdown')
 
-  const updateTextBlock = (value: string) => {
-    if (!activeTextBlock) return
-    setBlocks((currentBlocks) =>
-      currentBlocks.map((block) =>
-        block.id === activeTextBlock.id ? { ...block, value } : block,
-      ),
-    )
-  }
-
-  const selectTextBlock = (blockId: TextBlock['id']) => {
-    setActiveTextBlockId(blockId)
-  }
-
-  const insertImageBlockAfterActiveTextBlock = ({ src, alt }: UploadedImage) => {
-    if (!activeTextBlock) return
-
-    setBlocks((currentBlocks) => {
-      const activeIndex = currentBlocks.findIndex(
-        (block) => block.id === activeTextBlock.id,
-      )
-
-      if (activeIndex === -1) {
-        return currentBlocks
-      }
-
-      const imageBlock: Block = {
-        id: `image-${Date.now()}`,
-        type: 'image',
-        src,
-        alt,
-      }
-
-      return [
-        ...currentBlocks.slice(0, activeIndex + 1),
-        imageBlock,
-        ...currentBlocks.slice(activeIndex + 1),
-      ]
-    })
+  const replaceBlocks = (nextBlocks: Block[], nextSourceName: string) => {
+    setBlocks(nextBlocks)
+    setSourceName(nextSourceName)
   }
 
   const clearUploadError = () => {
     setUploadError(null)
   }
 
-  const setImageUploadError = (message: string) => {
+  const clearSourceError = () => {
+    setSourceError(null)
+  }
+
+  const setUploadStatusError = (message: string) => {
     setUploadError(message)
+  }
+
+  const setSourceStatusError = (message: string) => {
+    setSourceError(message)
   }
 
   const updateTypographyField = (field: TypographyField, value: number) => {
@@ -100,18 +64,18 @@ export function useEditorState() {
 
   return useMemo(
     () => ({
-      activeTextBlock,
-      activeTextBlockId,
       blocks,
-      insertImageBlockAfterActiveTextBlock,
-      selectTextBlock,
       clearUploadError,
+      clearSourceError,
+      replaceBlocks,
+      sourceError,
+      sourceName,
+      setSourceStatusError,
+      setUploadStatusError,
       uploadError,
       typography,
-      setImageUploadError,
-      updateTextBlock,
       updateTypographyFieldFromInput,
     }),
-    [activeTextBlock, activeTextBlockId, blocks, typography, uploadError],
+    [blocks, sourceError, sourceName, typography, uploadError],
   )
 }
