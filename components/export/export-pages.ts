@@ -1,13 +1,20 @@
 'use client'
 
 import html2canvas from 'html2canvas'
+import JSZip from 'jszip'
 
 const EXPORT_SCALE = 2
 
 export async function exportPagesAsPng(pageElements: HTMLElement[]) {
+  return exportPagesAsPngZip(pageElements)
+}
+
+export async function exportPagesAsPngZip(pageElements: HTMLElement[]) {
   if (pageElements.length === 0) {
     throw new Error('当前没有可导出的页面。')
   }
+
+  const zip = new JSZip()
 
   for (let index = 0; index < pageElements.length; index += 1) {
     const pageElement = pageElements[index]
@@ -17,11 +24,12 @@ export async function exportPagesAsPng(pageElements: HTMLElement[]) {
         scale: EXPORT_SCALE,
         useCORS: true,
       })
-      const link = document.createElement('a')
+      const blob = await canvasToBlob(canvas)
 
-      link.href = canvas.toDataURL('image/png')
-      link.download = `softpage-page-${index + 1}.png`
-      link.click()
+      zip.file(
+        `softpage-page-${String(index + 1).padStart(2, '0')}.png`,
+        blob,
+      )
     } catch (error) {
       throw new Error(
         `第 ${index + 1} 页导出失败，请重试。`,
@@ -29,4 +37,26 @@ export async function exportPagesAsPng(pageElements: HTMLElement[]) {
       )
     }
   }
+
+  const zipBlob = await zip.generateAsync({ type: 'blob' })
+  const url = URL.createObjectURL(zipBlob)
+  const link = document.createElement('a')
+
+  link.href = url
+  link.download = 'softpage-export.zip'
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob)
+        return
+      }
+
+      reject(new Error('无法生成 PNG 文件。'))
+    }, 'image/png')
+  })
 }

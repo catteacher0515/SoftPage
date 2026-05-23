@@ -9,10 +9,10 @@ import type {
 } from './types'
 
 const defaultTypography: TypographyConfig = {
-  fontSize: 22,
-  lineHeight: 1.7,
-  fontWeight: 400,
-  paragraphSpacing: 16,
+  fontSize: 15,
+  lineHeight: 1.5,
+  fontWeight: 500,
+  paragraphSpacing: 0,
   pagePadding: 40,
 }
 

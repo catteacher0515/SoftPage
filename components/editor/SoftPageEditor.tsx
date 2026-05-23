@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
 import { exportPagesAsPng } from '../export/export-pages'
 import { PageCanvas } from '../preview/PageCanvas'
+import {
+  PAGE_ASPECT_RATIO,
+  PAGE_HEADER_HEIGHT,
+  PAGE_MAX_WIDTH,
+} from '../preview/constants'
 import { paginateSegments, type MeasuredSegment } from '../preview/pagination'
 import { useEditorState } from './use-editor-state'
 
@@ -77,8 +82,11 @@ export function SoftPageEditor() {
   }, [blocks, typography])
 
   const pages = useMemo(() => {
-    const pageWidth = previewWidth > 0 ? Math.min(previewWidth, 360) : 0
-    const availableHeight = pageWidth > 0 ? (pageWidth * 4) / 3 - typography.pagePadding * 2 : 0
+    const pageWidth = previewWidth > 0 ? Math.min(previewWidth, PAGE_MAX_WIDTH) : 0
+    const availableHeight =
+      pageWidth > 0
+        ? pageWidth * PAGE_ASPECT_RATIO - typography.pagePadding * 2 - PAGE_HEADER_HEIGHT - 18
+        : 0
 
     return availableHeight > 0
       ? paginateSegments(measuredSegments, availableHeight, typography.paragraphSpacing)
@@ -160,124 +168,185 @@ export function SoftPageEditor() {
     }
   }
 
+  const pageCount = pages.length
+  const exportButtonLabel = isExporting ? '打包中…' : '导出 ZIP'
+
   return (
-    <main
-      style={{
-        display: 'grid',
-        gridTemplateColumns: '280px minmax(0, 1fr)',
-        minHeight: '100vh',
-      }}
-    >
-      <aside style={{ padding: 16, display: 'grid', gap: 12 }}>
-        <label>
-          正文
-          <textarea
-            aria-label="正文"
-            value={activeTextBlock?.value ?? ''}
-            onChange={(event) => updateTextBlock(event.target.value)}
+    <main className="workspace-shell">
+      <aside className="control-rail">
+        <div className="brand-lockup">
+          <p className="brand-kicker">Editorial Canvas</p>
+          <h1>SoftPage</h1>
+          <p className="brand-copy">
+            把一篇稿子整理成适合发布的 3:4 图文页面。
+          </p>
+        </div>
+
+        <section className="panel-card">
+          <div className="panel-head">
+            <p className="panel-eyebrow">文字设置</p>
+            <h2>正文编辑</h2>
+          </div>
+          <label className="field-stack">
+            <span className="field-label">正文</span>
+            <textarea
+              aria-label="正文"
+              value={activeTextBlock?.value ?? ''}
+              onChange={(event) => updateTextBlock(event.target.value)}
+              disabled={isExporting}
+              className="editor-textarea"
+            />
+          </label>
+        </section>
+
+        <section className="panel-card">
+          <div className="panel-head">
+            <p className="panel-eyebrow">内容素材</p>
+            <h2>图片插入</h2>
+          </div>
+          <label className="upload-field">
+            <span className="upload-copy">插入图片</span>
+            <span className="upload-hint">JPEG / PNG / WebP / GIF，8MB 以内</span>
+            <input
+              aria-label="插入图片"
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              disabled={isExporting}
+              onChange={(event) => {
+                void handleImageUpload(event)
+              }}
+            />
+          </label>
+        </section>
+
+        <section className="panel-card">
+          <div className="panel-head">
+            <p className="panel-eyebrow">页面设置</p>
+            <h2>版式参数</h2>
+          </div>
+          <div className="field-grid">
+            <label className="field-stack">
+              <span className="field-label">字号</span>
+              <input
+                aria-label="fontSize"
+                type="number"
+                value={typography.fontSize}
+                disabled={isExporting}
+                onChange={(event) =>
+                  updateTypographyFieldFromInput(
+                    'fontSize',
+                    event.target.value === '' ? Number.NaN : Number(event.target.value),
+                  )
+                }
+              />
+            </label>
+            <label className="field-stack">
+              <span className="field-label">行高</span>
+              <input
+                aria-label="lineHeight"
+                type="number"
+                step="0.1"
+                value={typography.lineHeight}
+                disabled={isExporting}
+                onChange={(event) =>
+                  updateTypographyFieldFromInput(
+                    'lineHeight',
+                    event.target.value === '' ? Number.NaN : Number(event.target.value),
+                  )
+                }
+              />
+            </label>
+            <label className="field-stack">
+              <span className="field-label">字重</span>
+              <input
+                aria-label="fontWeight"
+                type="number"
+                value={typography.fontWeight}
+                disabled={isExporting}
+                onChange={(event) =>
+                  updateTypographyFieldFromInput(
+                    'fontWeight',
+                    event.target.value === '' ? Number.NaN : Number(event.target.value),
+                  )
+                }
+              />
+            </label>
+            <label className="field-stack">
+              <span className="field-label">段距</span>
+              <input
+                aria-label="paragraphSpacing"
+                type="number"
+                value={typography.paragraphSpacing}
+                disabled={isExporting}
+                onChange={(event) =>
+                  updateTypographyFieldFromInput(
+                    'paragraphSpacing',
+                    event.target.value === '' ? Number.NaN : Number(event.target.value),
+                  )
+                }
+              />
+            </label>
+            <label className="field-stack field-full">
+              <span className="field-label">页边距</span>
+              <input
+                aria-label="pagePadding"
+                type="number"
+                value={typography.pagePadding}
+                disabled={isExporting}
+                onChange={(event) =>
+                  updateTypographyFieldFromInput(
+                    'pagePadding',
+                    event.target.value === '' ? Number.NaN : Number(event.target.value),
+                  )
+                }
+              />
+            </label>
+          </div>
+        </section>
+
+        <section className="panel-card">
+          <div className="panel-head">
+            <p className="panel-eyebrow">导出</p>
+            <h2>成品输出</h2>
+          </div>
+          <button
+            type="button"
+            className="primary-action"
+            onClick={() => void handleExportPages()}
             disabled={isExporting}
-            style={{ display: 'block', width: '100%', minHeight: 160 }}
-          />
-        </label>
-        <label>
-          插入图片
-          <input
-            aria-label="插入图片"
-            type="file"
-            accept="image/jpeg,image/png,image/webp,image/gif"
-            disabled={isExporting}
-            onChange={(event) => {
-              void handleImageUpload(event)
-            }}
-          />
-        </label>
-        {uploadError ? <p role="alert">{uploadError}</p> : null}
-        {exportError ? <p role="alert">{exportError}</p> : null}
-        <label>
-          fontSize
-          <input
-            aria-label="fontSize"
-            type="number"
-            value={typography.fontSize}
-            disabled={isExporting}
-            onChange={(event) =>
-              updateTypographyFieldFromInput(
-                'fontSize',
-                event.target.value === '' ? Number.NaN : Number(event.target.value),
-              )
-            }
-          />
-        </label>
-        <label>
-          lineHeight
-          <input
-            aria-label="lineHeight"
-            type="number"
-            step="0.1"
-            value={typography.lineHeight}
-            disabled={isExporting}
-            onChange={(event) =>
-              updateTypographyFieldFromInput(
-                'lineHeight',
-                event.target.value === '' ? Number.NaN : Number(event.target.value),
-              )
-            }
-          />
-        </label>
-        <label>
-          fontWeight
-          <input
-            aria-label="fontWeight"
-            type="number"
-            value={typography.fontWeight}
-            disabled={isExporting}
-            onChange={(event) =>
-              updateTypographyFieldFromInput(
-                'fontWeight',
-                event.target.value === '' ? Number.NaN : Number(event.target.value),
-              )
-            }
-          />
-        </label>
-        <label>
-          paragraphSpacing
-          <input
-            aria-label="paragraphSpacing"
-            type="number"
-            value={typography.paragraphSpacing}
-            disabled={isExporting}
-            onChange={(event) =>
-              updateTypographyFieldFromInput(
-                'paragraphSpacing',
-                event.target.value === '' ? Number.NaN : Number(event.target.value),
-              )
-            }
-          />
-        </label>
-        <label>
-          pagePadding
-          <input
-            aria-label="pagePadding"
-            type="number"
-            value={typography.pagePadding}
-            disabled={isExporting}
-            onChange={(event) =>
-              updateTypographyFieldFromInput(
-                'pagePadding',
-                event.target.value === '' ? Number.NaN : Number(event.target.value),
-              )
-            }
-          />
-        </label>
-        <button type="button" onClick={() => void handleExportPages()} disabled={isExporting}>
-          {isExporting ? '导出中…' : '导出 PNG'}
-        </button>
+          >
+            {exportButtonLabel}
+          </button>
+          <p className="export-note">按页生成 PNG，并打包成一个 ZIP 下载。</p>
+        </section>
+
+        {uploadError ? <p role="alert" className="status-banner status-banner-danger">{uploadError}</p> : null}
+        {exportError ? <p role="alert" className="status-banner status-banner-danger">{exportError}</p> : null}
       </aside>
-      <section style={{ padding: typography.pagePadding }}>
-        {pages.length === 0 ? (
-          <p role="status">暂无可预览内容，请先输入正文或插入图片。</p>
-        ) : null}
-        <PageCanvas pages={pages} typography={typography} onPageRef={handlePageRef} />
+
+      <section className="preview-stage">
+        <header className="preview-stage__head">
+          <div>
+            <p className="panel-eyebrow">内容预览</p>
+            <h2>3:4 页面舞台</h2>
+          </div>
+          <div className="preview-stage__meta">
+            <span>{pageCount} 页</span>
+            <span>{isExporting ? '导出锁定中' : '可继续编辑'}</span>
+          </div>
+        </header>
+
+        <div className="preview-stage__canvas">
+          {pages.length === 0 ? (
+            <div className="empty-state" role="status">
+              <p className="empty-state__title">暂无可预览内容</p>
+              <p className="empty-state__copy">先输入正文或插入图片，右侧会自动生成分页画布。</p>
+            </div>
+          ) : (
+            <PageCanvas pages={pages} typography={typography} onPageRef={handlePageRef} />
+          )}
+        </div>
+
         <div
           ref={measureRootRef}
           aria-hidden="true"
@@ -285,7 +354,7 @@ export function SoftPageEditor() {
             position: 'absolute',
             left: -10000,
             top: 0,
-            width: 'min(100%, 360px)',
+            width: `min(100%, ${PAGE_MAX_WIDTH}px)`,
             visibility: 'hidden',
             pointerEvents: 'none',
           }}
