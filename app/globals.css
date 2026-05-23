@@ -11,6 +11,9 @@
   --danger-bg: rgba(157, 61, 48, 0.12);
   --shadow-soft: 0 20px 60px rgba(66, 43, 20, 0.08);
   --shadow-stage: 0 40px 120px rgba(49, 28, 9, 0.18);
+  --font-ui-stack: var(--font-ui), 'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', sans-serif;
+  --font-body-stack: var(--font-body), 'Source Han Serif SC', 'Songti SC', 'STSong', 'Noto Serif SC', serif;
+  --font-mono-stack: var(--font-mono), 'JetBrains Mono', 'SFMono-Regular', 'Menlo', monospace;
 }
 
 * {
@@ -29,7 +32,7 @@ body {
     radial-gradient(circle at top left, rgba(255, 255, 255, 0.65), transparent 28%),
     radial-gradient(circle at bottom right, rgba(177, 109, 44, 0.12), transparent 24%),
     linear-gradient(135deg, #f1e7d8 0%, #e7dccb 42%, #efe6d8 100%);
-  font-family: 'Hiragino Sans GB', 'Noto Sans SC', 'PingFang SC', sans-serif;
+  font-family: var(--font-ui-stack);
 }
 
 button,
@@ -70,7 +73,7 @@ textarea {
 .preview-stage__head h2,
 .empty-state__title {
   margin: 0;
-  font-family: 'STSong', 'Songti SC', 'Noto Serif SC', serif;
+  font-family: var(--font-body-stack);
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -93,6 +96,7 @@ textarea {
 .panel-eyebrow {
   margin: 0;
   font-size: 0.72rem;
+  font-family: var(--font-ui-stack);
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--accent-dark);
@@ -242,12 +246,14 @@ textarea {
 
 .content-outline__index {
   font-size: 0.76rem;
+  font-family: var(--font-ui-stack);
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--accent-dark);
 }
 
 .content-outline__text {
+  font-family: var(--font-body-stack);
   color: var(--ink);
   line-height: 1.5;
   overflow-wrap: anywhere;
@@ -259,6 +265,7 @@ textarea {
   border-radius: 16px;
   background: linear-gradient(135deg, var(--accent) 0%, #cb8842 100%);
   color: #fffdf8;
+  font-family: var(--font-ui-stack);
   font-weight: 700;
   letter-spacing: 0.04em;
   box-shadow: 0 16px 36px rgba(177, 109, 44, 0.24);
@@ -288,6 +295,7 @@ textarea {
   padding: 14px 16px;
   border-radius: 18px;
   font-size: 0.92rem;
+  font-family: var(--font-ui-stack);
   line-height: 1.5;
 }
 
@@ -327,6 +335,7 @@ textarea {
   min-height: 34px;
   padding: 0 12px;
   border-radius: 999px;
+  font-family: var(--font-ui-stack);
   background: rgba(255, 251, 244, 0.84);
   border: 1px solid rgba(35, 28, 22, 0.08);
 }
@@ -364,6 +373,7 @@ textarea {
   gap: 10px;
   min-height: 56vh;
   text-align: center;
+  font-family: var(--font-ui-stack);
   color: rgba(255, 248, 238, 0.88);
 }
 

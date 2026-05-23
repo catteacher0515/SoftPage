@@ -2,16 +2,17 @@ import React from 'react'
 import { render, screen } from '@testing-library/react'
 import { expect, test } from 'vitest'
 import { PageCanvas } from './PageCanvas'
+import { PAGE_ASPECT_RATIO } from './constants'
 
 test('renders pages without editor header chrome', () => {
-  render(
+  const { container } = render(
     <PageCanvas
       typography={{
         fontSize: 15,
         lineHeight: 1.5,
-        fontWeight: 500,
+        fontWeight: 400,
         paragraphSpacing: 0,
-        pagePadding: 40,
+        pagePadding: 30,
       }}
       pages={[
         {
@@ -33,6 +34,10 @@ test('renders pages without editor header chrome', () => {
 
   expect(screen.getByText('测试正文')).toBeInTheDocument()
   expect(screen.queryByText('SoftPage Draft')).not.toBeInTheDocument()
+  expect(container.querySelector('[data-preview-page]')).toHaveStyle({
+    aspectRatio: `${1 / PAGE_ASPECT_RATIO}`,
+    background: '#ffffff',
+  })
 })
 
 test('renders table and missing image blocks as structured content', () => {
@@ -41,9 +46,9 @@ test('renders table and missing image blocks as structured content', () => {
       typography={{
         fontSize: 15,
         lineHeight: 1.5,
-        fontWeight: 500,
+        fontWeight: 400,
         paragraphSpacing: 15,
-        pagePadding: 40,
+        pagePadding: 30,
       }}
       pages={[
         {
@@ -94,9 +99,9 @@ test('renders divider blocks as horizontal rules', () => {
       typography={{
         fontSize: 15,
         lineHeight: 1.5,
-        fontWeight: 500,
+        fontWeight: 400,
         paragraphSpacing: 15,
-        pagePadding: 40,
+        pagePadding: 30,
       }}
       pages={[
         {

@@ -427,6 +427,9 @@ export function SoftPageEditor() {
         >
           <article
             style={{
+              fontFamily: 'var(--font-body-stack)',
+              textRendering: 'optimizeLegibility',
+              fontFeatureSettings: '"liga" 1, "kern" 1',
               fontSize: typography.fontSize,
               lineHeight: typography.lineHeight,
               fontWeight: typography.fontWeight,
@@ -470,6 +473,7 @@ export function SoftPageEditor() {
                       border: '1px dashed rgba(157, 61, 48, 0.45)',
                       background: 'rgba(157, 61, 48, 0.08)',
                       color: '#8f382c',
+                      fontFamily: 'var(--font-ui-stack)',
                     }}
                   >
                     <strong style={{ display: 'block', marginBottom: 6 }}>图片缺失</strong>
@@ -498,6 +502,7 @@ export function SoftPageEditor() {
                         width: '100%',
                         borderCollapse: 'collapse',
                         tableLayout: 'fixed',
+                        fontFamily: 'var(--font-ui-stack)',
                       }}
                     >
                       <tbody>
@@ -519,6 +524,7 @@ export function SoftPageEditor() {
                                   verticalAlign: 'top',
                                   overflowWrap: 'anywhere',
                                   fontWeight: rowIndex === 0 ? 600 : 500,
+                                  lineHeight: 1.55,
                                 }}
                               >
                                 {cell}
@@ -543,7 +549,7 @@ export function SoftPageEditor() {
                     style={{
                       height: 1,
                       background: 'rgba(35, 28, 22, 0.22)',
-                      margin: '8px 0',
+                      margin: '10px 0 12px',
                     }}
                   />,
                 ]

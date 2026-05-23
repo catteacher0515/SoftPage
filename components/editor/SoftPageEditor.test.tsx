@@ -25,7 +25,7 @@ test('uses the updated default typography controls', () => {
   expect(screen.getAllByLabelText('fontSize')[0]).toHaveValue(15)
   expect(screen.getAllByLabelText('lineHeight')[0]).toHaveValue(1.5)
   expect(screen.getAllByLabelText('paragraphSpacing')[0]).toHaveValue(15)
-  expect(screen.getAllByLabelText('fontWeight')[0]).toHaveValue(500)
+  expect(screen.getAllByLabelText('fontWeight')[0]).toHaveValue(400)
 })
 
 vi.mock('html2canvas', () => ({

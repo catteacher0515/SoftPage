@@ -1,6 +1,6 @@
 import { type RefCallback } from 'react'
 import type { TypographyConfig } from '../editor/types'
-import { PAGE_MAX_WIDTH } from './constants'
+import { PAGE_ASPECT_RATIO, PAGE_MAX_WIDTH } from './constants'
 import type { PaginatedPage } from './pagination'
 
 type PageCanvasProps = {
@@ -31,8 +31,8 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
           data-preview-page={page.id}
           style={{
             width: `min(100%, ${PAGE_MAX_WIDTH}px)`,
-            aspectRatio: '3 / 4',
-            background: '#F6F1E8',
+            aspectRatio: `${1 / PAGE_ASPECT_RATIO}`,
+            background: '#FFFFFF',
             padding: typography.pagePadding,
             boxSizing: 'border-box',
             overflow: 'hidden',
@@ -43,6 +43,9 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
             boxShadow: '0 24px 70px rgba(17, 11, 6, 0.26)',
             border: '1px solid rgba(17, 17, 17, 0.08)',
             borderRadius: 10,
+            fontFamily: "var(--font-body-stack)",
+            textRendering: 'optimizeLegibility',
+            fontFeatureSettings: '"liga" 1, "kern" 1',
             fontSize: typography.fontSize,
             lineHeight: typography.lineHeight,
             fontWeight: typography.fontWeight,
@@ -79,6 +82,7 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
                       border: '1px dashed rgba(157, 61, 48, 0.45)',
                       background: 'rgba(157, 61, 48, 0.08)',
                       color: '#8f382c',
+                      fontFamily: 'var(--font-ui-stack)',
                     }}
                   >
                     <strong style={{ display: 'block', marginBottom: 6 }}>图片缺失</strong>
@@ -106,6 +110,7 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
                         width: '100%',
                         borderCollapse: 'collapse',
                         tableLayout: 'fixed',
+                        fontFamily: 'var(--font-ui-stack)',
                       }}
                     >
                       <tbody>
@@ -127,6 +132,7 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
                                   verticalAlign: 'top',
                                   overflowWrap: 'anywhere',
                                   fontWeight: rowIndex === 0 ? 600 : 500,
+                                  lineHeight: 1.55,
                                 }}
                               >
                                 {cell}
@@ -148,7 +154,7 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
                       width: '100%',
                       height: 1,
                       background: 'rgba(35, 28, 22, 0.22)',
-                      margin: '8px 0',
+                      margin: '10px 0 12px',
                     }}
                   />
                 )

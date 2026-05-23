@@ -10,9 +10,9 @@ import type {
 const defaultTypography: TypographyConfig = {
   fontSize: 15,
   lineHeight: 1.5,
-  fontWeight: 500,
+  fontWeight: 400,
   paragraphSpacing: 15,
-  pagePadding: 40,
+  pagePadding: 30,
 }
 
 const initialBlocks: Block[] = [
