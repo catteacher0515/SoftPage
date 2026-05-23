@@ -1,6 +1,6 @@
 import React from 'react'
 import { afterEach, test, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { SoftPageEditor } from './SoftPageEditor'
 import html2canvas from 'html2canvas'
 
@@ -27,6 +27,149 @@ test('uses the updated default typography controls', () => {
   expect(screen.getAllByLabelText('lineHeight')[0]).toHaveValue(1.62)
   expect(screen.getAllByLabelText('paragraphSpacing')[0]).toHaveValue(15)
   expect(screen.getAllByLabelText('fontWeight')[0]).toHaveValue(400)
+})
+
+test('re-parses markdown when attachments are imported after the source file', async () => {
+  render(<SoftPageEditor />)
+
+  const markdownInput = screen.getAllByLabelText('导入 Markdown 原稿')[0]
+  const attachmentsInput = screen.getAllByLabelText('导入图片附件')[0]
+  const markdownFile = new File(
+    ['![[assets/Pasted image 20260522150957.png]]'],
+    'article.md',
+    { type: 'text/markdown' },
+  )
+  const attachmentFile = new File(
+    ['image-binary'],
+    'Pasted image 20260522150957.png',
+    { type: 'image/png' },
+  )
+
+  Object.defineProperty(attachmentFile, 'webkitRelativePath', {
+    value: 'vault/assets/Pasted image 20260522150957.png',
+  })
+  Object.defineProperty(markdownFile, 'text', {
+    value: vi.fn(async () => '![[assets/Pasted image 20260522150957.png]]'),
+  })
+
+  fireEvent.change(markdownInput, {
+    target: {
+      files: [markdownFile],
+    },
+  })
+
+  expect(await screen.findByText('article.md')).toBeInTheDocument()
+  expect(await screen.findByText(/未匹配附件：assets\/Pasted image 20260522150957\.png/)).toBeInTheDocument()
+  expect(screen.getByText(/缺图 · assets\/Pasted image 20260522150957\.png/)).toBeInTheDocument()
+
+  fireEvent.change(attachmentsInput, {
+    target: {
+      files: [attachmentFile],
+    },
+  })
+
+  await waitFor(() => {
+    expect(screen.queryByText(/未匹配附件：assets\/Pasted image 20260522150957\.png/)).not.toBeInTheDocument()
+  })
+
+  expect(screen.getByText('图片 · Pasted image 20260522150957')).toBeInTheDocument()
+})
+
+test('matches markdown image references from a broad search scope without loading unrelated files', async () => {
+  render(<SoftPageEditor />)
+
+  const markdownInput = screen.getAllByLabelText('导入 Markdown 原稿')[0]
+  const scopeInput = screen.getAllByLabelText('选择 Obsidian 搜索目录')[0]
+  const markdownFile = new File(
+    ['![[assets/Pasted image 20260521145142.png]]'],
+    'article.md',
+    { type: 'text/markdown' },
+  )
+  const unrelatedFile = new File(['other'], 'something-else.png', { type: 'image/png' })
+  const matchedFile = new File(['image-binary'], 'Pasted image 20260521145142.png', {
+    type: 'image/png',
+  })
+
+  Object.defineProperty(markdownFile, 'text', {
+    value: vi.fn(async () => '![[assets/Pasted image 20260521145142.png]]'),
+  })
+  Object.defineProperty(unrelatedFile, 'webkitRelativePath', {
+    value: 'vault/random/something-else.png',
+  })
+  Object.defineProperty(matchedFile, 'webkitRelativePath', {
+    value: 'vault/assets/Pasted image 20260521145142.png',
+  })
+
+  fireEvent.change(markdownInput, {
+    target: {
+      files: [markdownFile],
+    },
+  })
+
+  expect(await screen.findByText(/未匹配附件：assets\/Pasted image 20260521145142\.png/)).toBeInTheDocument()
+
+  fireEvent.change(scopeInput, {
+    target: {
+      files: [unrelatedFile, matchedFile],
+    },
+  })
+
+  await waitFor(() => {
+    expect(screen.queryByText(/未匹配附件：assets\/Pasted image 20260521145142\.png/)).not.toBeInTheDocument()
+  })
+
+  expect(screen.getByText('图片 · Pasted image 20260521145142')).toBeInTheDocument()
+})
+
+test('ignores oversized unrelated images while still matching referenced images from the search scope', async () => {
+  render(<SoftPageEditor />)
+
+  const markdownInput = screen.getAllByLabelText('导入 Markdown 原稿')[0]
+  const scopeInput = screen.getAllByLabelText('选择 Obsidian 搜索目录')[0]
+  const markdownFile = new File(
+    ['![[assets/Pasted image 20260521145142.png]]'],
+    'article.md',
+    { type: 'text/markdown' },
+  )
+  const largeUnrelatedFile = new File(['oversized'], 'f05bc4f434b07534e234a78c2e23e1c6.png', {
+    type: 'image/png',
+  })
+  const matchedFile = new File(['image-binary'], 'Pasted image 20260521145142.png', {
+    type: 'image/png',
+  })
+
+  Object.defineProperty(markdownFile, 'text', {
+    value: vi.fn(async () => '![[assets/Pasted image 20260521145142.png]]'),
+  })
+  Object.defineProperty(largeUnrelatedFile, 'webkitRelativePath', {
+    value: 'vault/random/f05bc4f434b07534e234a78c2e23e1c6.png',
+  })
+  Object.defineProperty(matchedFile, 'webkitRelativePath', {
+    value: 'vault/assets/Pasted image 20260521145142.png',
+  })
+  Object.defineProperty(largeUnrelatedFile, 'size', {
+    value: 9 * 1024 * 1024,
+  })
+
+  fireEvent.change(markdownInput, {
+    target: {
+      files: [markdownFile],
+    },
+  })
+
+  expect(await screen.findByText('article.md')).toBeInTheDocument()
+
+  fireEvent.change(scopeInput, {
+    target: {
+      files: [largeUnrelatedFile, matchedFile],
+    },
+  })
+
+  await waitFor(() => {
+    expect(screen.getByText('图片 · Pasted image 20260521145142')).toBeInTheDocument()
+  })
+
+  expect(screen.queryByText(/图片不能超过 8MB：f05bc4f434b07534e234a78c2e23e1c6\.png/)).not.toBeInTheDocument()
 })
 
 vi.mock('html2canvas', () => ({

@@ -15,6 +15,34 @@ type ParseMarkdownResult = {
   missingAssetPaths: string[]
 }
 
+export function extractLocalImageReferences(markdown: string) {
+  const references = new Set<string>()
+
+  markdown.split(/\r?\n/).forEach((rawLine) => {
+    const trimmedLine = rawLine.trim()
+
+    const markdownImageMatch = trimmedLine.match(MARKDOWN_IMAGE_PATTERN)
+
+    if (markdownImageMatch) {
+      const src = markdownImageMatch[2] ?? ''
+
+      if (!isRemoteSource(src)) {
+        references.add(src.trim())
+      }
+
+      return
+    }
+
+    const obsidianImageMatch = trimmedLine.match(OBSIDIAN_IMAGE_PATTERN)
+
+    if (obsidianImageMatch) {
+      references.add(normalizeObsidianPath(obsidianImageMatch[1] ?? ''))
+    }
+  })
+
+  return Array.from(references)
+}
+
 export function parseMarkdownDocument(
   markdown: string,
   assetMap: Record<string, string> = {},
@@ -234,6 +262,14 @@ function resolveImageSource(requestedPath: string, assets: AssetSource[]) {
     return exactMatch.src
   }
 
+  const exactSuffixMatch = assets.find((asset) =>
+    normalizeAssetLookupKey(asset.key).endsWith(`/${normalizedRequestedPath}`),
+  )
+
+  if (exactSuffixMatch) {
+    return exactSuffixMatch.src
+  }
+
   const fileNameMatch = assets.find(
     (asset) => normalizeAssetLookupKey(asset.fileName) === normalizedRequestedFileName,
   )
@@ -251,6 +287,20 @@ function resolveImageSource(requestedPath: string, assets: AssetSource[]) {
   }
 
   return null
+}
+
+export function doesAssetPathMatchReference(assetPath: string, requestedPath: string) {
+  const normalizedAssetPath = normalizeAssetLookupKey(assetPath)
+  const normalizedRequestedPath = normalizeAssetLookupKey(requestedPath)
+  const normalizedAssetFileName = normalizeAssetLookupKey(lastPathPart(assetPath))
+  const normalizedRequestedFileName = normalizeAssetLookupKey(lastPathPart(requestedPath))
+
+  return (
+    normalizedAssetPath === normalizedRequestedPath ||
+    normalizedAssetPath.endsWith(`/${normalizedRequestedPath}`) ||
+    normalizedAssetFileName === normalizedRequestedFileName ||
+    normalizedAssetFileName.includes(normalizedRequestedFileName)
+  )
 }
 
 function normalizeAssetLookupKey(path: string) {

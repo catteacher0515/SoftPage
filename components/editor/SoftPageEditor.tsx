@@ -1,7 +1,11 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react'
-import { parseMarkdownDocument } from './markdown'
+import {
+  doesAssetPathMatchReference,
+  extractLocalImageReferences,
+  parseMarkdownDocument,
+} from './markdown'
 import { exportPagesAsPng } from '../export/export-pages'
 import { PageCanvas } from '../preview/PageCanvas'
 import {
@@ -43,6 +47,8 @@ export function SoftPageEditor() {
   const [isExporting, setIsExporting] = useState(false)
   const [exportError, setExportError] = useState<string | null>(null)
   const [missingAssets, setMissingAssets] = useState<string[]>([])
+  const [markdownSource, setMarkdownSource] = useState<{ name: string; content: string } | null>(null)
+  const [assetMap, setAssetMap] = useState<Record<string, string>>({})
 
   useEffect(() => {
     const measureRoot = measureRootRef.current
@@ -147,20 +153,31 @@ export function SoftPageEditor() {
     }
   }
 
-  const handleMarkdownImport = async (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? [])
+  const applyParsedMarkdown = (markdown: string, sourceName: string, nextAssetMap: Record<string, string>) => {
+    const parsed = parseMarkdownDocument(markdown, nextAssetMap)
 
-    if (files.length === 0) return
+    replaceBlocks(parsed.blocks, sourceName)
+    setMissingAssets(parsed.missingAssetPaths)
+
+    if (parsed.missingAssetPaths.length > 0) {
+      setUploadStatusError(`有 ${parsed.missingAssetPaths.length} 张图片未匹配到本地附件。`)
+      return
+    }
+
+    clearUploadError()
+  }
+
+  const handleMarkdownImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const markdownFile = event.target.files?.[0]
+
+    if (!markdownFile) return
 
     clearUploadError()
     clearSourceError()
     setExportError(null)
-    setMissingAssets([])
 
-    const markdownFile = files.find((file) => isMarkdownFile(file))
-
-    if (!markdownFile) {
-      setSourceStatusError('请至少选择一个 Markdown 文件。')
+    if (!isMarkdownFile(markdownFile)) {
+      setSourceStatusError('请选择一个 Markdown 文件。')
       event.target.value = ''
       return
     }
@@ -173,10 +190,32 @@ export function SoftPageEditor() {
 
     try {
       const markdown = await markdownFile.text()
-      const assetFiles = files.filter((file) => file !== markdownFile)
+      setMarkdownSource({
+        name: markdownFile.name,
+        content: markdown,
+      })
+      applyParsedMarkdown(markdown, markdownFile.name, assetMap)
+    } catch (error) {
+      setSourceStatusError(
+        error instanceof Error ? error.message : 'Markdown 导入失败，请重试。',
+      )
+    } finally {
+      event.target.value = ''
+    }
+  }
+
+  const handleAttachmentsImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? [])
+
+    if (files.length === 0) return
+
+    clearUploadError()
+    setExportError(null)
+
+    try {
       const assetEntries = await Promise.all(
-        assetFiles.map(async (file) => {
-          if (!ACCEPTED_IMAGE_TYPES.has(file.type)) {
+        files.map(async (file) => {
+          if (!isAcceptedImageFile(file)) {
             throw new Error(`只支持 JPEG、PNG、WebP 和 GIF 图片：${file.name}`)
           }
 
@@ -189,20 +228,94 @@ export function SoftPageEditor() {
           return [relativePath, await readFileAsDataUrl(file)] as const
         }),
       )
-      const assetMap = Object.fromEntries(assetEntries)
-      const parsed = parseMarkdownDocument(markdown, assetMap)
 
-      replaceBlocks(parsed.blocks, markdownFile.name)
-      setMissingAssets(parsed.missingAssetPaths)
+      const nextAssetMap = {
+        ...assetMap,
+        ...Object.fromEntries(assetEntries),
+      }
 
-      if (parsed.missingAssetPaths.length > 0) {
-        setUploadStatusError(
-          `有 ${parsed.missingAssetPaths.length} 张图片未匹配到本地附件。`,
-        )
+      setAssetMap(nextAssetMap)
+
+      if (markdownSource) {
+        applyParsedMarkdown(markdownSource.content, markdownSource.name, nextAssetMap)
       }
     } catch (error) {
-      setSourceStatusError(
-        error instanceof Error ? error.message : 'Markdown 导入失败，请重试。',
+      setUploadStatusError(
+        error instanceof Error ? error.message : '附件导入失败，请重试。',
+      )
+    } finally {
+      event.target.value = ''
+    }
+  }
+
+  const handleSearchScopeImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? [])
+
+    if (files.length === 0) return
+
+    clearUploadError()
+    setExportError(null)
+
+    if (!markdownSource) {
+      setUploadStatusError('请先导入 Markdown 原稿，再选择 Obsidian 搜索目录。')
+      event.target.value = ''
+      return
+    }
+
+    const references = extractLocalImageReferences(markdownSource.content)
+
+    if (references.length === 0) {
+      setUploadStatusError('当前 Markdown 没有检测到本地图片引用。')
+      event.target.value = ''
+      return
+    }
+
+    try {
+      const matchedAssets: Array<readonly [string, string]> = []
+      const remainingReferences = new Set(references)
+      const skippedOversizedMatches: string[] = []
+
+      for (const file of files) {
+        if (!isAcceptedImageFile(file)) continue
+
+        const relativePath = getRelativePathFromFile(file)
+        const matchedReference = Array.from(remainingReferences).find((reference) =>
+          doesAssetPathMatchReference(relativePath, reference),
+        )
+
+        if (!matchedReference) continue
+
+        if (file.size > MAX_ASSET_SIZE_BYTES) {
+          skippedOversizedMatches.push(file.name)
+          continue
+        }
+
+        matchedAssets.push([relativePath, await readFileAsDataUrl(file)] as const)
+        remainingReferences.delete(matchedReference)
+
+        if (remainingReferences.size === 0) break
+      }
+
+      if (matchedAssets.length === 0) {
+        setUploadStatusError('在所选目录中没有找到当前 Markdown 引用到的图片。')
+        event.target.value = ''
+        return
+      }
+
+      const nextAssetMap = {
+        ...assetMap,
+        ...Object.fromEntries(matchedAssets),
+      }
+
+      setAssetMap(nextAssetMap)
+      applyParsedMarkdown(markdownSource.content, markdownSource.name, nextAssetMap)
+
+      if (skippedOversizedMatches.length > 0) {
+        setUploadStatusError(`以下命中图片超过 8MB，已跳过：${skippedOversizedMatches.join('，')}`)
+      }
+    } catch (error) {
+      setUploadStatusError(
+        error instanceof Error ? error.message : '搜索目录导入失败，请重试。',
       )
     } finally {
       event.target.value = ''
@@ -229,24 +342,63 @@ export function SoftPageEditor() {
             <h2>原稿导入</h2>
           </div>
           <label className="upload-field">
-            <span className="upload-copy">导入 Markdown 和附件</span>
+            <span className="upload-copy">导入 Markdown 原稿</span>
             <span className="upload-hint">
-              选择一个 `.md` 文件，可同时附带同目录图片附件。
+              先选择一个 `.md` 文件，系统会按正文结构生成预览。
             </span>
             <input
-              aria-label="导入 Markdown"
+              aria-label="导入 Markdown 原稿"
               type="file"
-              multiple
-              accept=".md,text/markdown,text/plain,image/jpeg,image/png,image/webp,image/gif"
+              accept=".md,text/markdown,text/plain"
               disabled={isExporting}
               onChange={(event) => {
                 void handleMarkdownImport(event)
               }}
             />
           </label>
+          <label className="upload-field">
+            <span className="upload-copy">导入图片附件</span>
+            <span className="upload-hint">
+              可单独补传 Obsidian 附件目录或图片文件，导入后会自动重新匹配缺图。
+            </span>
+            <input
+              aria-label="导入图片附件"
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              disabled={isExporting}
+              onChange={(event) => {
+                void handleAttachmentsImport(event)
+              }}
+            />
+          </label>
+          <label className="upload-field">
+            <span className="upload-copy">选择 Obsidian 搜索目录</span>
+            <span className="upload-hint">
+              如果你不知道图片在哪个子目录，可以直接选择整个 Obsidian 文件夹，系统会只按当前 Markdown 的图片引用定向查找。
+            </span>
+            <input
+              aria-label="选择 Obsidian 搜索目录"
+              type="file"
+              multiple
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              disabled={isExporting}
+              {...{
+                webkitdirectory: '',
+                directory: '',
+              }}
+              onChange={(event) => {
+                void handleSearchScopeImport(event)
+              }}
+            />
+          </label>
           <div className="source-summary">
             <p className="source-summary__label">当前原稿</p>
             <p className="source-summary__value">{sourceName}</p>
+          </div>
+          <div className="source-summary">
+            <p className="source-summary__label">已导入附件</p>
+            <p className="source-summary__value">{Object.keys(assetMap).length} 个</p>
           </div>
           <div className="source-summary">
             <p className="source-summary__label">内容块</p>
@@ -608,6 +760,10 @@ function readFileAsDataUrl(file: File) {
 
 function isMarkdownFile(file: File) {
   return file.name.toLowerCase().endsWith('.md') || ACCEPTED_MARKDOWN_TYPES.has(file.type)
+}
+
+function isAcceptedImageFile(file: File) {
+  return ACCEPTED_IMAGE_TYPES.has(file.type)
 }
 
 function getRelativePathFromFile(file: File) {

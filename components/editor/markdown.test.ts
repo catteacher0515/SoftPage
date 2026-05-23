@@ -1,5 +1,9 @@
 import { expect, test } from 'vitest'
-import { parseMarkdownDocument } from './markdown'
+import {
+  doesAssetPathMatchReference,
+  extractLocalImageReferences,
+  parseMarkdownDocument,
+} from './markdown'
 
 test('parses markdown paragraphs and image syntaxes into blocks', () => {
   const result = parseMarkdownDocument(
@@ -67,6 +71,38 @@ test('matches obsidian assets by file name when folder differs', () => {
   ])
 })
 
+test('prefers an exact relative asset path when duplicate filenames exist', () => {
+  const result = parseMarkdownDocument('![[assets/Pasted image 20260522150957.png]]', {
+    'attachments/Pasted image 20260522150957.png': 'data:image/png;base64,wrong-image',
+    'assets/Pasted image 20260522150957.png': 'data:image/png;base64,right-image',
+  })
+
+  expect(result.blocks).toEqual([
+    {
+      id: 'image-1',
+      type: 'image',
+      src: 'data:image/png;base64,right-image',
+      alt: 'Pasted image 20260522150957',
+    },
+  ])
+})
+
+test('matches asset paths by suffix when imported folder adds a root prefix', () => {
+  const result = parseMarkdownDocument('![[assets/Pasted image 20260522150957.png]]', {
+    'vault/other/Pasted image 20260522150957.png': 'data:image/png;base64,wrong-image',
+    'vault/assets/Pasted image 20260522150957.png': 'data:image/png;base64,right-image',
+  })
+
+  expect(result.blocks).toEqual([
+    {
+      id: 'image-1',
+      type: 'image',
+      src: 'data:image/png;base64,right-image',
+      alt: 'Pasted image 20260522150957',
+    },
+  ])
+})
+
 test('parses markdown tables into table blocks', () => {
   const result = parseMarkdownDocument(
     [
@@ -100,4 +136,35 @@ test('parses markdown horizontal rules into divider blocks', () => {
     { id: 'divider-1', type: 'divider' },
     { id: 'text-2', type: 'text', value: '第二段' },
   ])
+})
+
+test('extracts local image references from markdown and obsidian syntaxes', () => {
+  const references = extractLocalImageReferences(
+    [
+      '![[assets/Pasted image 20260522150957.png]]',
+      '![](attachments/cover.png)',
+      '![](https://example.com/remote.png)',
+    ].join('\n'),
+  )
+
+  expect(references).toEqual([
+    'assets/Pasted image 20260522150957.png',
+    'attachments/cover.png',
+  ])
+})
+
+test('matches asset paths against markdown references using relative suffixes', () => {
+  expect(
+    doesAssetPathMatchReference(
+      'vault/assets/Pasted image 20260522150957.png',
+      'assets/Pasted image 20260522150957.png',
+    ),
+  ).toBe(true)
+
+  expect(
+    doesAssetPathMatchReference(
+      'vault/random/cover.png',
+      'attachments/cover.png',
+    ),
+  ).toBe(true)
 })

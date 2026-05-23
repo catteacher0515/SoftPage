@@ -9,7 +9,7 @@ test('renders pages without editor header chrome', () => {
     <PageCanvas
       typography={{
         fontSize: 15,
-        lineHeight: 1.5,
+        lineHeight: 1.62,
         fontWeight: 400,
         paragraphSpacing: 0,
         pagePadding: 30,
@@ -38,6 +38,9 @@ test('renders pages without editor header chrome', () => {
     aspectRatio: `${1 / PAGE_ASPECT_RATIO}`,
     background: '#ffffff',
   })
+  expect(container.querySelector('[data-preview-page]')).toHaveStyle({
+    fontFamily: 'var(--font-reading-stack)',
+  })
 })
 
 test('renders table and missing image blocks as structured content', () => {
@@ -45,7 +48,7 @@ test('renders table and missing image blocks as structured content', () => {
     <PageCanvas
       typography={{
         fontSize: 15,
-        lineHeight: 1.5,
+        lineHeight: 1.62,
         fontWeight: 400,
         paragraphSpacing: 15,
         pagePadding: 30,
@@ -98,7 +101,7 @@ test('renders divider blocks as horizontal rules', () => {
     <PageCanvas
       typography={{
         fontSize: 15,
-        lineHeight: 1.5,
+        lineHeight: 1.62,
         fontWeight: 400,
         paragraphSpacing: 15,
         pagePadding: 30,
