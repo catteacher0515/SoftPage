@@ -31,3 +31,44 @@ test('rebalances adjacent pages when the last page is too sparse', () => {
   expect(pages[0]?.segments.map((segment) => segment.id)).toEqual(['a'])
   expect(pages[1]?.segments.map((segment) => segment.id)).toEqual(['b', 'c'])
 })
+
+test('cuts earlier to avoid leaving a single sparse segment on the last page', () => {
+  const pages = paginateSegments(
+    [
+      createParagraphSegment('a', 120),
+      createParagraphSegment('b', 120),
+      createParagraphSegment('c', 80),
+      createParagraphSegment('d', 120),
+      createParagraphSegment('e', 120),
+    ],
+    320,
+    15,
+  )
+
+  expect(pages).toHaveLength(3)
+  expect(pages[0]?.segments.map((segment) => segment.id)).toEqual(['a'])
+  expect(pages[1]?.segments.map((segment) => segment.id)).toEqual(['b', 'c'])
+  expect(pages[2]?.segments.map((segment) => segment.id)).toEqual(['d', 'e'])
+})
+
+test('keeps a two-page layout when the trailing page is already within a comfortable density range', () => {
+  const pages = paginateSegments(
+    [
+      createParagraphSegment('a', 100),
+      createParagraphSegment('b', 100),
+      createParagraphSegment('c', 90),
+      createParagraphSegment('d', 100),
+      createParagraphSegment('e', 100),
+    ],
+    320,
+    15,
+  )
+
+  expect(pages).toHaveLength(2)
+  expect(pages[0]?.segments.map((segment) => segment.id)).toEqual([
+    'a',
+    'b',
+    'c',
+  ])
+  expect(pages[1]?.segments.map((segment) => segment.id)).toEqual(['d', 'e'])
+})
