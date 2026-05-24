@@ -27,7 +27,7 @@ export async function exportPagesAsPngZip(pageElements: HTMLElement[]) {
       const blob = await canvasToBlob(canvas)
 
       zip.file(
-        `softpage-page-${String(index + 1).padStart(2, '0')}.png`,
+        `softpage-page-${String(pageElements.length - index).padStart(2, '0')}.png`,
         blob,
       )
     } catch (error) {

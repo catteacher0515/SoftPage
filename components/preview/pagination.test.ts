@@ -175,3 +175,32 @@ test('does not apply paragraph spacing between lines from the same paragraph', (
   expect(pages).toHaveLength(1)
   expect(pages[0]?.segments).toHaveLength(4)
 })
+
+test('backfills leading paragraph lines from the next page when the current page still has room', () => {
+  const pages = paginateSegments(
+    [
+      createParagraphSegment('intro-1', 75),
+      createParagraphSegment('intro-2', 75),
+      createParagraphSegment('intro-3', 75),
+      createParagraphLineSegment('body-1', 0, 4, 24),
+      createParagraphLineSegment('body-1', 1, 4, 24),
+      createParagraphLineSegment('body-1', 2, 4, 24),
+      createParagraphLineSegment('body-1', 3, 4, 24),
+    ],
+    320,
+    15,
+  )
+
+  expect(pages).toHaveLength(2)
+  expect(pages[0]?.segments.map((segment) => segment.id)).toEqual([
+    'intro-1',
+    'intro-2',
+    'intro-3',
+    'body-1-line-0',
+    'body-1-line-1',
+  ])
+  expect(pages[1]?.segments.map((segment) => segment.id)).toEqual([
+    'body-1-line-2',
+    'body-1-line-3',
+  ])
+})

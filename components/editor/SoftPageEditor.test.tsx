@@ -202,6 +202,10 @@ vi.mock('jszip', () => {
 
 test('exports all pages as a zip package', async () => {
   const { exportPagesAsPngZip } = await import('../export/export-pages')
+  const JSZipModule = await import('jszip')
+  const FakeZip = JSZipModule.default as unknown as {
+    instances: Array<{ files: Map<string, Blob> }>
+  }
   const clickSpy = vi.fn()
   const originalCreateElement = document.createElement.bind(document)
   const createElementSpy = vi.spyOn(document, 'createElement')
@@ -228,6 +232,12 @@ test('exports all pages as a zip package', async () => {
   const pages = [document.createElement('article'), document.createElement('article')]
   await exportPagesAsPngZip(pages)
 
+  const latestZip = FakeZip.instances.at(-1)
+
+  expect(Array.from(latestZip?.files.keys() ?? [])).toEqual([
+    'softpage-page-02.png',
+    'softpage-page-01.png',
+  ])
   expect(anchor.download).toBe('softpage-export.zip')
   expect(anchor.href).toBe('blob:softpage-export')
   expect(clickSpy).toHaveBeenCalledTimes(1)

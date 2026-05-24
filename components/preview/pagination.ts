@@ -66,7 +66,7 @@ export function paginateSegments(
     startIndex = pageEndIndex + 1
   }
 
-  return pages
+  return rebalanceAdjacentPages(pages, config)
 }
 
 function choosePageBreak(
@@ -466,4 +466,148 @@ function isValidParagraphBreak(
     )
 
   return remainingParagraphLines.length >= MIN_PARAGRAPH_LINES_PER_PAGE
+}
+
+function rebalanceAdjacentPages(
+  pages: PaginatedPage[],
+  config: PaginationConfig,
+) {
+  if (pages.length < 2) {
+    return pages
+  }
+
+  const nextPages = pages.map((page) => ({
+    ...page,
+    segments: [...page.segments],
+  }))
+
+  for (let index = 0; index < nextPages.length - 1; index += 1) {
+    const currentPage = nextPages[index]
+    const nextPage = nextPages[index + 1]
+
+    if (!currentPage || !nextPage) {
+      continue
+    }
+
+    while (canBackfillLeadingParagraphLine(currentPage, nextPage, config)) {
+      const nextLeadingSegment = nextPage.segments[0]
+
+      if (!nextLeadingSegment) {
+        break
+      }
+
+      const nextParagraphId = nextLeadingSegment.paragraphId
+      const linesToMove = Math.max(
+        MIN_PARAGRAPH_LINES_PER_PAGE -
+          countTrailingParagraphLines(currentPage.segments, nextParagraphId),
+        1,
+      )
+      const backfillGroup = nextPage.segments.splice(0, linesToMove)
+
+      currentPage.segments.push(...backfillGroup)
+    }
+  }
+
+  return nextPages.filter((page) => page.segments.length > 0)
+}
+
+function canBackfillLeadingParagraphLine(
+  currentPage: PaginatedPage,
+  nextPage: PaginatedPage,
+  config: PaginationConfig,
+) {
+  const nextLeadingSegment = nextPage.segments[0]
+
+  if (
+    !nextLeadingSegment ||
+    nextLeadingSegment.kind !== 'paragraph' ||
+    !nextLeadingSegment.paragraphId
+  ) {
+    return false
+  }
+
+  const nextParagraphId = nextLeadingSegment.paragraphId
+  const linesToMove = Math.max(
+    MIN_PARAGRAPH_LINES_PER_PAGE -
+      countTrailingParagraphLines(currentPage.segments, nextParagraphId),
+    1,
+  )
+  const backfillGroup = nextPage.segments.slice(0, linesToMove)
+
+  if (backfillGroup.length !== linesToMove) {
+    return false
+  }
+
+  const remainingCurrentPageSegments = [...currentPage.segments, ...backfillGroup]
+  const nextPageRemainingSegments = nextPage.segments.slice(linesToMove)
+
+  if (nextPageRemainingSegments.length === 0) {
+    return false
+  }
+
+  if (
+    !respectsParagraphSplitRule(remainingCurrentPageSegments) ||
+    !respectsParagraphSplitRule(nextPageRemainingSegments)
+  ) {
+    return false
+  }
+
+  return calculateUsedHeight(remainingCurrentPageSegments, config.segmentGap) <= config.availableHeight
+}
+
+function respectsParagraphSplitRule(segments: MeasuredSegment[]) {
+  const segmentGroups = new Map<string, MeasuredSegment[]>()
+
+  segments.forEach((segment) => {
+    if (segment.kind !== 'paragraph' || !segment.paragraphId) {
+      return
+    }
+
+    const group = segmentGroups.get(segment.paragraphId) ?? []
+    group.push(segment)
+    segmentGroups.set(segment.paragraphId, group)
+  })
+
+  return Array.from(segmentGroups.values()).every((group) => {
+    const lineCount = group[0]?.lineCount ?? group.length
+
+    if (group.length === lineCount) {
+      return true
+    }
+
+    return group.length >= MIN_PARAGRAPH_LINES_PER_PAGE
+  })
+}
+
+function calculateUsedHeight(segments: MeasuredSegment[], segmentGap: number) {
+  return segments.reduce((usedHeight, segment, index) => {
+    if (index === 0) {
+      return segment.height
+    }
+
+    return usedHeight + getSegmentGap(segments[index - 1], segment, segmentGap) + segment.height
+  }, 0)
+}
+
+function countTrailingParagraphLines(
+  segments: MeasuredSegment[],
+  paragraphId: string | undefined,
+) {
+  if (!paragraphId) {
+    return 0
+  }
+
+  let count = 0
+
+  for (let index = segments.length - 1; index >= 0; index -= 1) {
+    const segment = segments[index]
+
+    if (!segment || segment.kind !== 'paragraph' || segment.paragraphId !== paragraphId) {
+      break
+    }
+
+    count += 1
+  }
+
+  return count
 }
