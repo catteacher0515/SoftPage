@@ -6,7 +6,9 @@ import {
   extractLocalImageReferences,
   parseMarkdownDocument,
 } from './markdown'
+import { exportCoverAsPng } from '../export/export-cover'
 import { exportPagesAsPng } from '../export/export-pages'
+import { CoverCanvas } from '../preview/CoverCanvas'
 import { PageCanvas } from '../preview/PageCanvas'
 import {
   PAGE_ASPECT_RATIO,
@@ -31,17 +33,23 @@ export function SoftPageEditor() {
     clearUploadError,
     blocks,
     clearSourceError,
+    coverDraft,
+    mode,
     replaceBlocks,
+    setCoverHeroImage,
+    setMode,
     setSourceStatusError,
     setUploadStatusError,
     sourceError,
     sourceName,
     uploadError,
     typography,
+    updateCoverTitle,
     updateTypographyFieldFromInput,
   } = useEditorState()
   const measureRootRef = useRef<HTMLDivElement | null>(null)
   const pageElementsRef = useRef(new Map<string, HTMLElement>())
+  const coverElementRef = useRef<HTMLDivElement | null>(null)
   const [measuredSegments, setMeasuredSegments] = useState<MeasuredSegment[]>([])
   const [previewWidth, setPreviewWidth] = useState(0)
   const [isExporting, setIsExporting] = useState(false)
@@ -188,10 +196,33 @@ export function SoftPageEditor() {
     }
   }
 
+  const handleCoverExport = async () => {
+    if (isExporting) return
+
+    setExportError(null)
+
+    if (!coverElementRef.current) {
+      setExportError('封面预览还未准备完成，请稍后重试。')
+      return
+    }
+
+    setIsExporting(true)
+
+    try {
+      await exportCoverAsPng(coverElementRef.current)
+    } catch (error) {
+      setExportError(
+        error instanceof Error ? error.message : '封面导出失败，请重试。',
+      )
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
   const applyParsedMarkdown = (markdown: string, sourceName: string, nextAssetMap: Record<string, string>) => {
     const parsed = parseMarkdownDocument(markdown, nextAssetMap)
 
-    replaceBlocks(parsed.blocks, sourceName)
+    replaceBlocks(parsed.blocks, sourceName, parsed.title)
     setMissingAssets(parsed.missingAssetPaths)
 
     if (parsed.missingAssetPaths.length > 0) {
@@ -357,6 +388,33 @@ export function SoftPageEditor() {
     }
   }
 
+  const handleCoverImageImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const coverImage = event.target.files?.[0]
+
+    if (!coverImage) return
+
+    clearUploadError()
+
+    try {
+      if (!isAcceptedImageFile(coverImage)) {
+        throw new Error(`只支持 JPEG、PNG、WebP 和 GIF 图片：${coverImage.name}`)
+      }
+
+      if (coverImage.size > MAX_ASSET_SIZE_BYTES) {
+        throw new Error(`图片不能超过 8MB：${coverImage.name}`)
+      }
+
+      const src = await readFileAsDataUrl(coverImage)
+      setCoverHeroImage(src, coverImage.name)
+    } catch (error) {
+      setUploadStatusError(
+        error instanceof Error ? error.message : '封面主图导入失败，请重试。',
+      )
+    } finally {
+      event.target.value = ''
+    }
+  }
+
   const pageCount = pages.length
   const exportButtonLabel = isExporting ? '打包中…' : '导出 ZIP'
 
@@ -372,6 +430,34 @@ export function SoftPageEditor() {
         </div>
 
         <section className="panel-card">
+          <div className="panel-head">
+            <p className="panel-eyebrow">工作区</p>
+            <h2>编辑模式</h2>
+          </div>
+          <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+            <button
+              type="button"
+              className="primary-action"
+              style={{ opacity: mode === 'body' ? 1 : 0.72 }}
+              onClick={() => setMode('body')}
+              disabled={isExporting}
+            >
+              正文排版
+            </button>
+            <button
+              type="button"
+              className="primary-action"
+              style={{ opacity: mode === 'cover' ? 1 : 0.72 }}
+              onClick={() => setMode('cover')}
+              disabled={isExporting}
+            >
+              封面制作
+            </button>
+          </div>
+        </section>
+
+        {mode === 'body' ? (
+          <section className="panel-card">
           <div className="panel-head">
             <p className="panel-eyebrow">内容来源</p>
             <h2>原稿导入</h2>
@@ -439,9 +525,46 @@ export function SoftPageEditor() {
             <p className="source-summary__label">内容块</p>
             <p className="source-summary__value">{blocks.length} 个</p>
           </div>
-        </section>
+          </section>
+        ) : (
+          <section className="panel-card">
+            <div className="panel-head">
+              <p className="panel-eyebrow">封面输入</p>
+              <h2>封面内容</h2>
+            </div>
+            <label className="field-stack field-full">
+              <span className="field-label">封面标题</span>
+              <textarea
+                aria-label="封面标题"
+                value={coverDraft.title}
+                disabled={isExporting}
+                onChange={(event) => updateCoverTitle(event.target.value)}
+                rows={4}
+                style={{ resize: 'vertical', minHeight: 120 }}
+              />
+            </label>
+            <label className="field-stack field-full">
+              <span className="field-label">作者</span>
+              <input aria-label="作者" type="text" value={coverDraft.author} readOnly />
+            </label>
+            <label className="upload-field">
+              <span className="upload-copy">上传封面主图</span>
+              <span className="upload-hint">封面主图需要单独上传，不复用正文图片。</span>
+              <input
+                aria-label="上传封面主图"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                disabled={isExporting}
+                onChange={(event) => {
+                  void handleCoverImageImport(event)
+                }}
+              />
+            </label>
+          </section>
+        )}
 
-        <section className="panel-card">
+        {mode === 'body' ? (
+          <section className="panel-card">
           <div className="panel-head">
             <p className="panel-eyebrow">内容结构</p>
             <h2>解析结果</h2>
@@ -464,9 +587,11 @@ export function SoftPageEditor() {
               </div>
             ))}
           </div>
-        </section>
+          </section>
+        ) : null}
 
-        <section className="panel-card">
+        {mode === 'body' ? (
+          <section className="panel-card">
           <div className="panel-head">
             <p className="panel-eyebrow">页面设置</p>
             <h2>版式参数</h2>
@@ -549,22 +674,39 @@ export function SoftPageEditor() {
               />
             </label>
           </div>
-        </section>
+          </section>
+        ) : null}
 
         <section className="panel-card">
           <div className="panel-head">
             <p className="panel-eyebrow">导出</p>
             <h2>成品输出</h2>
           </div>
-          <button
-            type="button"
-            className="primary-action"
-            onClick={() => void handleExportPages()}
-            disabled={isExporting}
-          >
-            {exportButtonLabel}
-          </button>
-          <p className="export-note">按页生成 PNG，并打包成一个 ZIP 下载。</p>
+          {mode === 'body' ? (
+            <>
+              <button
+                type="button"
+                className="primary-action"
+                onClick={() => void handleExportPages()}
+                disabled={isExporting}
+              >
+                {exportButtonLabel}
+              </button>
+              <p className="export-note">按页生成 PNG，并打包成一个 ZIP 下载。</p>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="primary-action"
+                onClick={() => void handleCoverExport()}
+                disabled={isExporting}
+              >
+                导出封面 PNG
+              </button>
+              <p className="export-note">单独导出 1 张封面 PNG。</p>
+            </>
+          )}
         </section>
 
         {uploadError ? <p role="alert" className="status-banner status-banner-danger">{uploadError}</p> : null}
@@ -580,17 +722,27 @@ export function SoftPageEditor() {
       <section className="preview-stage">
         <header className="preview-stage__head">
           <div>
-            <p className="panel-eyebrow">内容预览</p>
-            <h2>9:16 阅读页面</h2>
+            <p className="panel-eyebrow">{mode === 'body' ? '内容预览' : '封面预览'}</p>
+            <h2>{mode === 'body' ? '9:16 阅读页面' : '封面实时预览'}</h2>
           </div>
           <div className="preview-stage__meta">
-            <span>{pageCount} 页</span>
+            <span>{mode === 'body' ? `${pageCount} 页` : '1 张'}</span>
             <span>{isExporting ? '导出锁定中' : '可继续编辑'}</span>
           </div>
         </header>
 
         <div className="preview-stage__canvas">
-          {pages.length === 0 ? (
+          {mode === 'cover' ? (
+            <div ref={coverElementRef}>
+              <CoverCanvas
+                title={coverDraft.title}
+                author={coverDraft.author}
+                heroImageSrc={coverDraft.heroImageSrc}
+                heroImageAlt={coverDraft.heroImageAlt || '封面主图'}
+                hasDivider={coverDraft.hasDivider}
+              />
+            </div>
+          ) : pages.length === 0 ? (
             <div className="empty-state" role="status">
               <p className="empty-state__title">暂无可预览内容</p>
               <p className="empty-state__copy">先导入 Markdown 原稿，右侧会自动生成分页画布。</p>

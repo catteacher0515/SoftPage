@@ -43,6 +43,17 @@ export type UploadedImage = {
 export type UploadError = string | null
 export type SourceError = string | null
 
+export type EditorMode = 'body' | 'cover'
+
+export type CoverDraft = {
+  title: string
+  author: string
+  heroImageSrc: string | null
+  heroImageAlt: string
+  hasDivider: boolean
+  titleTouched: boolean
+}
+
 export type TypographyConfig = {
   fontSize: number
   lineHeight: number

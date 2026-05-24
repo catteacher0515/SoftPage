@@ -13,6 +13,7 @@ type AssetSource = {
 type ParseMarkdownResult = {
   blocks: Block[]
   missingAssetPaths: string[]
+  title: string
 }
 
 export function extractLocalImageReferences(markdown: string) {
@@ -207,7 +208,22 @@ export function parseMarkdownDocument(
   return {
     blocks,
     missingAssetPaths: Array.from(missingAssetPaths),
+    title: extractMarkdownTitle(markdown),
   }
+}
+
+export function extractMarkdownTitle(markdown: string) {
+  const lines = markdown.split(/\r?\n/)
+
+  for (const rawLine of lines) {
+    const trimmedLine = rawLine.trim()
+
+    if (trimmedLine.startsWith('# ')) {
+      return trimmedLine.replace(/^#\s+/, '').trim()
+    }
+  }
+
+  return ''
 }
 
 function normalizeParagraph(lines: string[]) {

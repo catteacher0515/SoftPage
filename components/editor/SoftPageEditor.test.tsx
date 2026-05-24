@@ -1,10 +1,13 @@
 import React from 'react'
 import { afterEach, test, expect, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { SoftPageEditor } from './SoftPageEditor'
 import html2canvas from 'html2canvas'
+import { CoverCanvas } from '../preview/CoverCanvas'
+import { exportCoverAsPng } from '../export/export-cover'
 
 afterEach(() => {
+  cleanup()
   vi.restoreAllMocks()
 })
 
@@ -179,6 +182,10 @@ vi.mock('html2canvas', () => ({
   })),
 }))
 
+vi.mock('../export/export-cover', () => ({
+  exportCoverAsPng: vi.fn(async () => undefined),
+}))
+
 vi.mock('jszip', () => {
   return {
     default: class FakeZip {
@@ -261,4 +268,84 @@ test('exports pages with their live background instead of forcing the old beige 
       backgroundColor: null,
     }),
   )
+})
+
+test('prefills cover title from markdown title and uses fixed default author', async () => {
+  render(<SoftPageEditor />)
+
+  const markdownInput = screen.getAllByLabelText('导入 Markdown 原稿')[0]
+  const markdownFile = new File(['# 我的封面标题\n\n正文'], 'article.md', {
+    type: 'text/markdown',
+  })
+
+  Object.defineProperty(markdownFile, 'text', {
+    value: vi.fn(async () => '# 我的封面标题\n\n正文'),
+  })
+
+  fireEvent.change(markdownInput, {
+    target: {
+      files: [markdownFile],
+    },
+  })
+
+  expect(await screen.findByText('article.md')).toBeInTheDocument()
+
+  fireEvent.click(screen.getByRole('button', { name: '封面制作' }))
+
+  expect(screen.getByLabelText('封面标题')).toHaveValue('我的封面标题')
+  expect(screen.getByLabelText('作者')).toHaveValue('花萍雨')
+})
+
+test('switches to cover mode and shows cover controls', async () => {
+  render(<SoftPageEditor />)
+
+  fireEvent.click(screen.getAllByRole('button', { name: '封面制作' })[0]!)
+
+  expect(screen.getByLabelText('封面标题')).toBeInTheDocument()
+  expect(screen.getByLabelText('上传封面主图')).toBeInTheDocument()
+  expect(screen.getByText('封面实时预览')).toBeInTheDocument()
+})
+
+test('renders fixed cover layout with hero image, title, author and divider', () => {
+  const { container } = render(
+    <CoverCanvas
+      title="封面标题"
+      author="花萍雨"
+      heroImageSrc="data:image/png;base64,abc"
+      heroImageAlt="封面主图"
+      hasDivider
+    />,
+  )
+
+  const cover = within(container)
+
+  expect(cover.getByRole('heading', { name: '封面标题' })).toBeInTheDocument()
+  expect(cover.getByText('| 作者：花萍雨')).toBeInTheDocument()
+  expect(cover.getByAltText('封面主图')).toBeInTheDocument()
+  expect(cover.getByTestId('cover-divider')).toBeInTheDocument()
+})
+
+test('uploads one cover hero image and updates preview', async () => {
+  render(<SoftPageEditor />)
+
+  fireEvent.click(screen.getAllByRole('button', { name: '封面制作' })[0]!)
+
+  const file = new File(['cover'], 'cover.png', { type: 'image/png' })
+
+  fireEvent.change(screen.getByLabelText('上传封面主图'), {
+    target: { files: [file] },
+  })
+
+  expect(await screen.findByAltText('cover.png')).toBeInTheDocument()
+})
+
+test('exports cover png separately', async () => {
+  render(<SoftPageEditor />)
+
+  fireEvent.click(screen.getAllByRole('button', { name: '封面制作' })[0]!)
+  fireEvent.click(screen.getByRole('button', { name: '导出封面 PNG' }))
+
+  await waitFor(() => {
+    expect(exportCoverAsPng).toHaveBeenCalledTimes(1)
+  })
 })
