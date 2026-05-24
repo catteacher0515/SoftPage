@@ -61,6 +61,18 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
             }}
           >
             {page.segments.map((segment) => {
+              const previousSegment =
+                page.segments[page.segments.findIndex((currentSegment) => currentSegment.id === segment.id) - 1]
+
+              if (
+                segment.kind === 'paragraph' &&
+                segment.paragraphId &&
+                previousSegment?.kind === 'paragraph' &&
+                previousSegment.paragraphId === segment.paragraphId
+              ) {
+                return null
+              }
+
               if (segment.kind === 'image') {
                 const imageBlock = segment.block as Extract<typeof segment.block, { type: 'image' }>
 
@@ -174,25 +186,60 @@ export function PageCanvas({ pages, typography, onPageRef }: PageCanvasProps) {
                 )
               }
 
-              return (
-                <p
-                  key={segment.id}
-                  style={{
-                    margin: 0,
-                    maxWidth: '100%',
-                    overflowWrap: 'anywhere',
-                    wordBreak: 'break-word',
-                    whiteSpace: 'pre-wrap',
-                    letterSpacing: '0.01em',
-                  }}
-                >
-                  {segment.text}
-                </p>
-              )
+              if (segment.kind === 'paragraph') {
+                const paragraphSegments = collectParagraphSegments(page.segments, segment)
+
+                return (
+                  <p
+                    key={segment.id}
+                    style={{
+                      margin: 0,
+                      maxWidth: '100%',
+                      overflowWrap: 'anywhere',
+                      wordBreak: 'break-word',
+                      whiteSpace: 'pre-wrap',
+                      letterSpacing: '0.01em',
+                    }}
+                  >
+                    {paragraphSegments.map((paragraphSegment) => paragraphSegment.text).join('\n')}
+                  </p>
+                )
+              }
+
+              return null
             })}
           </div>
         </article>
       ))}
     </div>
   )
+}
+
+function collectParagraphSegments(
+  segments: PaginatedPage['segments'],
+  startingSegment: PaginatedPage['segments'][number],
+) {
+  if (startingSegment.kind !== 'paragraph' || !startingSegment.paragraphId) {
+    return [startingSegment]
+  }
+
+  const startIndex = segments.findIndex((segment) => segment.id === startingSegment.id)
+
+  if (startIndex < 0) {
+    return [startingSegment]
+  }
+
+  const paragraphSegments = [startingSegment]
+
+  for (let index = startIndex + 1; index < segments.length; index += 1) {
+    const segment = segments[index]
+
+    if (!segment || segment.kind !== 'paragraph' || segment.paragraphId !== startingSegment.paragraphId) {
+      break
+    }
+
+    paragraphSegments.push(segment)
+  }
+
+  return paragraphSegments
 }

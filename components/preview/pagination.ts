@@ -7,6 +7,9 @@ export type MeasuredSegment = {
   kind: 'paragraph' | 'image' | 'table' | 'missing-image' | 'divider'
   text: string
   height: number
+  paragraphId?: string
+  lineIndex?: number
+  lineCount?: number
 }
 
 export type PaginatedPage = {
@@ -17,6 +20,7 @@ export type PaginatedPage = {
 type PaginationConfig = {
   availableHeight: number
   segmentGap: number
+  isLongformCanvas: boolean
   comfortableWhitespaceMin: number
   comfortableWhitespaceMax: number
   comfortableWhitespaceTarget: number
@@ -27,6 +31,8 @@ type CandidateBreak = {
   usedHeight: number
 }
 
+const MIN_PARAGRAPH_LINES_PER_PAGE = 2
+
 export function paginateSegments(
   segments: MeasuredSegment[],
   availableHeight: number,
@@ -36,12 +42,14 @@ export function paginateSegments(
     return []
   }
 
+  const isLongformCanvas = availableHeight >= 600
   const config: PaginationConfig = {
     availableHeight,
     segmentGap,
-    comfortableWhitespaceMin: availableHeight * 0.08,
-    comfortableWhitespaceMax: availableHeight * 0.22,
-    comfortableWhitespaceTarget: availableHeight * 0.15,
+    isLongformCanvas,
+    comfortableWhitespaceMin: availableHeight * (isLongformCanvas ? 0.04 : 0.05),
+    comfortableWhitespaceMax: availableHeight * (isLongformCanvas ? 0.12 : 0.16),
+    comfortableWhitespaceTarget: availableHeight * (isLongformCanvas ? 0.07 : 0.1),
   }
 
   const pages: PaginatedPage[] = []
@@ -87,17 +95,19 @@ function collectCandidateBreaks(
     const nextHeight =
       index === startIndex
         ? segment.height
-        : usedHeight + config.segmentGap + segment.height
+        : usedHeight + getSegmentGap(segments[index - 1], segment, config.segmentGap) + segment.height
 
     if (index > startIndex && nextHeight > config.availableHeight) {
       break
     }
 
     usedHeight = nextHeight
-    candidates.push({
-      endIndex: index,
-      usedHeight,
-    })
+    if (isValidParagraphBreak(segments, startIndex, index)) {
+      candidates.push({
+        endIndex: index,
+        usedHeight,
+      })
+    }
   }
 
   if (candidates.length === 0) {
@@ -228,17 +238,28 @@ function scoreWhitespace(
     whitespace >= config.comfortableWhitespaceMin &&
     whitespace <= config.comfortableWhitespaceMax
   ) {
-    return 60 - Math.abs(whitespace - config.comfortableWhitespaceTarget) * 0.55
+    const scoreBase = config.isLongformCanvas ? 84 : 72
+    const slope = config.isLongformCanvas ? 0.85 : 0.7
+    return scoreBase - Math.abs(whitespace - config.comfortableWhitespaceTarget) * slope
   }
 
   if (whitespace < config.comfortableWhitespaceMin) {
     const distance = config.comfortableWhitespaceMin - whitespace
-    return 38 - distance * 1.15
+    const scoreBase = config.isLongformCanvas ? 56 : 48
+    const slope = config.isLongformCanvas ? 0.9 : 0.95
+    return scoreBase - distance * slope
   }
 
   const distance = whitespace - config.comfortableWhitespaceMax
-  const airyPenalty = isFinalPage ? 0.22 : 0.35
-  return 24 - distance * airyPenalty
+  const airyPenalty = config.isLongformCanvas
+    ? isFinalPage
+      ? 0.18
+      : 0.95
+    : isFinalPage
+      ? 0.32
+      : 0.68
+  const scoreBase = config.isLongformCanvas ? 4 : 12
+  return scoreBase - distance * airyPenalty
 }
 
 function scorePageComposition(
@@ -268,20 +289,44 @@ function scorePageComposition(
       onlySegment &&
       whitespace > config.comfortableWhitespaceMax
     ) {
-      score -= isFinalPage ? 160 : 120
+      score -= config.isLongformCanvas
+        ? isFinalPage
+          ? 190
+          : 180
+        : isFinalPage
+          ? 180
+          : 150
     }
   }
 
-  if (!isFinalPage && whitespace > config.comfortableWhitespaceMax * 1.45) {
-    score -= 95
+  if (
+    config.isLongformCanvas &&
+    !isFinalPage &&
+    pageSegments.length <= 2 &&
+    whitespace > config.comfortableWhitespaceMax
+  ) {
+    score -= 320
   }
 
-  if (!isFinalPage && whitespace > config.comfortableWhitespaceMax * 1.9) {
-    score -= 135
+  if (
+    config.isLongformCanvas &&
+    !isFinalPage &&
+    pageSegments.length === 3 &&
+    whitespace > config.comfortableWhitespaceTarget * 1.8
+  ) {
+    score -= 180
   }
 
-  if (isFinalPage && whitespace > config.comfortableWhitespaceMax * 2) {
-    score -= 70
+  if (!isFinalPage && whitespace > config.comfortableWhitespaceMax * (config.isLongformCanvas ? 1.1 : 1.2)) {
+    score -= config.isLongformCanvas ? 180 : 150
+  }
+
+  if (!isFinalPage && whitespace > config.comfortableWhitespaceMax * (config.isLongformCanvas ? 1.35 : 1.55)) {
+    score -= config.isLongformCanvas ? 280 : 250
+  }
+
+  if (isFinalPage && whitespace > config.comfortableWhitespaceMax * (config.isLongformCanvas ? 2.1 : 1.85)) {
+    score -= config.isLongformCanvas ? 55 : 90
   }
 
   return score
@@ -307,25 +352,118 @@ function scorePageTransition(
   let score = 0
   const whitespaceDelta = Math.abs(currentWhitespace - nextPlan.firstWhitespace)
 
-  score -= whitespaceDelta * 0.38
+  score -= whitespaceDelta * (config.isLongformCanvas ? 0.58 : 0.48)
 
   if (
     nextPlan.firstSegmentCount === 1 &&
     nextPlan.firstWhitespace > config.comfortableWhitespaceMax
   ) {
-    score -= 140
+    score -= config.isLongformCanvas ? 170 : 170
 
     if (currentSegmentCount >= 2) {
-      score -= 40
+      score -= config.isLongformCanvas ? 55 : 55
     }
   }
 
   if (
-    currentWhitespace > config.comfortableWhitespaceMax * 1.45 &&
+    currentWhitespace > config.comfortableWhitespaceMax * (config.isLongformCanvas ? 1.1 : 1.2) &&
     nextPlan.firstWhitespace < currentWhitespace
   ) {
-    score -= 90
+    score -= config.isLongformCanvas ? 190 : 150
+  }
+
+  if (
+    config.isLongformCanvas &&
+    currentWhitespace > config.comfortableWhitespaceMax * 1.2 &&
+    nextPlan.firstSegmentCount <= 2
+  ) {
+    score -= 320
+  }
+
+  if (
+    config.isLongformCanvas &&
+    currentWhitespace > config.comfortableWhitespaceTarget * 1.6 &&
+    nextPlan.firstSegmentCount <= 3
+  ) {
+    score -= 240
+  }
+
+  if (
+    config.isLongformCanvas &&
+    currentWhitespace > config.comfortableWhitespaceTarget * 1.3 &&
+    currentSegmentCount <= 3 &&
+    nextPlan.firstSegmentCount <= 3
+  ) {
+    score -= 260
   }
 
   return score
+}
+
+function getSegmentGap(
+  previousSegment: MeasuredSegment | undefined,
+  nextSegment: MeasuredSegment,
+  defaultGap: number,
+) {
+  if (!previousSegment) {
+    return 0
+  }
+
+  if (
+    previousSegment.kind === 'paragraph' &&
+    nextSegment.kind === 'paragraph' &&
+    previousSegment.paragraphId &&
+    nextSegment.paragraphId &&
+    previousSegment.paragraphId === nextSegment.paragraphId
+  ) {
+    return 0
+  }
+
+  return defaultGap
+}
+
+function isValidParagraphBreak(
+  segments: MeasuredSegment[],
+  startIndex: number,
+  endIndex: number,
+) {
+  const lastSegment = segments[endIndex]
+
+  if (!lastSegment || lastSegment.kind !== 'paragraph' || !lastSegment.paragraphId) {
+    return true
+  }
+
+  const paragraphId = lastSegment.paragraphId
+  const pageParagraphSegments = segments
+    .slice(startIndex, endIndex + 1)
+    .filter(
+      (segment) => segment.kind === 'paragraph' && segment.paragraphId === paragraphId,
+    )
+
+  const paragraphLineCount = lastSegment.lineCount ?? pageParagraphSegments.length
+
+  const endsParagraph =
+    typeof lastSegment.lineIndex === 'number'
+      ? lastSegment.lineIndex === paragraphLineCount - 1
+      : pageParagraphSegments.length === paragraphLineCount
+
+  if (pageParagraphSegments.length === paragraphLineCount) {
+    return true
+  }
+
+  if (pageParagraphSegments.length < MIN_PARAGRAPH_LINES_PER_PAGE) {
+    return false
+  }
+
+  if (endsParagraph) {
+    return true
+  }
+
+  const remainingParagraphLines = segments
+    .slice(endIndex + 1)
+    .filter(
+      (segment) => segment.kind === 'paragraph' && segment.paragraphId === paragraphId,
+    )
+
+  return remainingParagraphLines.length >= MIN_PARAGRAPH_LINES_PER_PAGE
 }

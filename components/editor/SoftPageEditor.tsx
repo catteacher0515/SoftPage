@@ -56,35 +56,70 @@ export function SoftPageEditor() {
     if (!measureRoot) return
 
     const updateMeasurements = () => {
-      const items = Array.from(
+      const nextSegments: MeasuredSegment[] = []
+      const measureElements = Array.from(
         measureRoot.querySelectorAll<HTMLElement>('[data-measure-segment]'),
-      ).map((element) => {
+      )
+
+      measureElements.forEach((element) => {
         const segmentId = element.dataset.segmentId ?? ''
         const blockId = element.dataset.blockId ?? ''
         const block = blocks.find((currentBlock) => currentBlock.id === blockId)
 
-        return block
-          ? {
-              id: segmentId,
-              blockId,
-              block,
-              kind:
-                block.type === 'image'
-                  ? 'image'
-                  : block.type === 'table'
-                    ? 'table'
-                    : block.type === 'missing-image'
-                      ? 'missing-image'
-                      : block.type === 'divider'
-                        ? 'divider'
-                      : 'paragraph',
-              text: element.dataset.segmentText ?? '',
-              height: element.getBoundingClientRect().height,
-            }
-          : null
-      })
+        if (!block) {
+          return
+        }
 
-      const nextSegments = items.filter((item): item is MeasuredSegment => item !== null)
+        if (block.type !== 'text') {
+          nextSegments.push({
+            id: segmentId,
+            blockId,
+            block,
+            kind:
+              block.type === 'image'
+                ? 'image'
+                : block.type === 'table'
+                  ? 'table'
+                  : block.type === 'missing-image'
+                    ? 'missing-image'
+                    : 'divider',
+            text: element.dataset.segmentText ?? '',
+            height: element.getBoundingClientRect().height,
+          })
+          return
+        }
+
+        const lines = measureParagraphLines(element)
+
+        if (lines.length === 0) {
+          nextSegments.push({
+            id: `${segmentId}-line-0`,
+            blockId,
+            block,
+            kind: 'paragraph',
+            text: element.dataset.segmentText ?? '',
+            height: element.getBoundingClientRect().height,
+            paragraphId: segmentId,
+            lineIndex: 0,
+            lineCount: 1,
+          })
+          return
+        }
+
+        lines.forEach((lineText, index) => {
+          nextSegments.push({
+            id: `${segmentId}-line-${index}`,
+            blockId,
+            block,
+            kind: 'paragraph',
+            text: lineText,
+            height: getComputedLineHeight(element),
+            paragraphId: segmentId,
+            lineIndex: index,
+            lineCount: lines.length,
+          })
+        })
+      })
 
       setMeasuredSegments(nextSegments)
       setPreviewWidth(measureRoot.getBoundingClientRect().width)
@@ -332,7 +367,7 @@ export function SoftPageEditor() {
           <p className="brand-kicker">Editorial Canvas</p>
           <h1>SoftPage</h1>
           <p className="brand-copy">
-            把一篇稿子整理成适合发布的 3:4 图文页面。
+            把一篇长文整理成适合发布的 9:16 阅读页面。
           </p>
         </div>
 
@@ -546,7 +581,7 @@ export function SoftPageEditor() {
         <header className="preview-stage__head">
           <div>
             <p className="panel-eyebrow">内容预览</p>
-            <h2>3:4 页面舞台</h2>
+            <h2>9:16 阅读页面</h2>
           </div>
           <div className="preview-stage__meta">
             <span>{pageCount} 页</span>
@@ -756,6 +791,76 @@ function readFileAsDataUrl(file: File) {
 
     reader.readAsDataURL(file)
   })
+}
+
+function getComputedLineHeight(element: HTMLElement) {
+  const computedLineHeight = window.getComputedStyle(element).lineHeight
+
+  if (computedLineHeight.endsWith('px')) {
+    return Number.parseFloat(computedLineHeight)
+  }
+
+  const fontSize = Number.parseFloat(window.getComputedStyle(element).fontSize)
+  const numericLineHeight = Number.parseFloat(computedLineHeight)
+
+  return Number.isFinite(numericLineHeight) && Number.isFinite(fontSize)
+    ? numericLineHeight * fontSize
+    : element.getBoundingClientRect().height
+}
+
+function measureParagraphLines(element: HTMLElement) {
+  const text = element.textContent ?? ''
+
+  if (text.trim() === '') {
+    return [text]
+  }
+
+  const documentRange = element.ownerDocument.createRange()
+  const textNode = element.firstChild
+
+  if (!textNode || textNode.nodeType !== Node.TEXT_NODE) {
+    return [text]
+  }
+
+  if (typeof documentRange.getClientRects !== 'function') {
+    return [text]
+  }
+
+  const rawLines: string[] = []
+  let currentTop: number | null = null
+  let currentLineStart = 0
+
+  for (let index = 1; index <= text.length; index += 1) {
+    documentRange.setStart(textNode, currentLineStart)
+    documentRange.setEnd(textNode, index)
+
+    const rects = Array.from(documentRange.getClientRects())
+
+    if (rects.length === 0) {
+      continue
+    }
+
+    const latestRect = rects[rects.length - 1]
+
+    if (!latestRect) {
+      continue
+    }
+
+    if (currentTop === null) {
+      currentTop = latestRect.top
+      continue
+    }
+
+    if (Math.abs(latestRect.top - currentTop) > 1) {
+      rawLines.push(text.slice(currentLineStart, index - 1))
+      currentLineStart = index - 1
+      currentTop = latestRect.top
+    }
+  }
+
+  rawLines.push(text.slice(currentLineStart))
+
+  return rawLines.map((line) => line.trimEnd())
 }
 
 function isMarkdownFile(file: File) {
