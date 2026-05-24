@@ -230,13 +230,19 @@ test('exports all pages as a zip package', async () => {
   })
 
   const pages = [document.createElement('article'), document.createElement('article')]
+  pages[0]?.setAttribute('data-page', 'page-1')
+  pages[1]?.setAttribute('data-page', 'page-2')
   await exportPagesAsPngZip(pages)
 
   const latestZip = FakeZip.instances.at(-1)
 
   expect(Array.from(latestZip?.files.keys() ?? [])).toEqual([
-    'softpage-page-02.png',
     'softpage-page-01.png',
+    'softpage-page-02.png',
+  ])
+  expect(vi.mocked(html2canvas).mock.calls.map(([element]) => element.getAttribute('data-page'))).toEqual([
+    'page-2',
+    'page-1',
   ])
   expect(anchor.download).toBe('softpage-export.zip')
   expect(anchor.href).toBe('blob:softpage-export')

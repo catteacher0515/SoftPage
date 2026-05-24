@@ -16,7 +16,7 @@ export async function exportPagesAsPngZip(pageElements: HTMLElement[]) {
 
   const zip = new JSZip()
 
-  for (let index = 0; index < pageElements.length; index += 1) {
+  for (let index = pageElements.length - 1; index >= 0; index -= 1) {
     const pageElement = pageElements[index]
     try {
       const canvas = await html2canvas(pageElement, {
@@ -25,9 +25,10 @@ export async function exportPagesAsPngZip(pageElements: HTMLElement[]) {
         useCORS: true,
       })
       const blob = await canvasToBlob(canvas)
+      const exportIndex = pageElements.length - index
 
       zip.file(
-        `softpage-page-${String(pageElements.length - index).padStart(2, '0')}.png`,
+        `softpage-page-${String(exportIndex).padStart(2, '0')}.png`,
         blob,
       )
     } catch (error) {
