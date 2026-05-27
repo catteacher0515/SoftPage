@@ -1,6 +1,7 @@
 type CoverCanvasProps = {
   title: string
   author: string
+  titleFontSize: number
   heroImageSrc: string | null
   heroImageAlt: string
   hasDivider: boolean
@@ -9,6 +10,7 @@ type CoverCanvasProps = {
 export function CoverCanvas({
   title,
   author,
+  titleFontSize,
   heroImageSrc,
   heroImageAlt,
   hasDivider,
@@ -23,13 +25,24 @@ export function CoverCanvas({
         background: '#ffffff',
         padding: '28px 28px 0',
         display: 'grid',
-        gridTemplateRows: '8% 46% 23% 7% 16%',
+        gridTemplateRows: '8% auto auto auto 16%',
         boxShadow: '0 18px 48px rgba(31, 22, 15, 0.14)',
         overflow: 'hidden',
       }}
     >
       <div aria-hidden="true" />
-      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+      <div
+        data-testid="cover-hero"
+        style={{
+          display: 'flex',
+          alignItems: 'stretch',
+          aspectRatio: '16 / 9',
+          width: 'calc(100% + 56px)',
+          marginInline: '-28px',
+          borderRadius: 0,
+          overflow: 'hidden',
+        }}
+      >
         {heroImageSrc ? (
           <img
             alt={heroImageAlt}
@@ -38,7 +51,6 @@ export function CoverCanvas({
               width: '100%',
               height: '100%',
               objectFit: 'cover',
-              borderRadius: 20,
               display: 'block',
             }}
           />
@@ -63,9 +75,10 @@ export function CoverCanvas({
       </div>
       <div style={{ paddingTop: 22 }}>
         <h1
+          data-testid="cover-title"
           style={{
             margin: 0,
-            fontSize: 40,
+            fontSize: titleFontSize,
             lineHeight: 1.12,
             letterSpacing: '-0.03em',
             color: '#1d1a16',

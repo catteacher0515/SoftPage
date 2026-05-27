@@ -50,6 +50,7 @@ export type CoverDraft = {
   author: string
   heroImageSrc: string | null
   heroImageAlt: string
+  titleFontSize: number
   hasDivider: boolean
   titleTouched: boolean
 }

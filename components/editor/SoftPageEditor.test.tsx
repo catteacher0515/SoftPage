@@ -294,6 +294,7 @@ test('prefills cover title from markdown title and uses fixed default author', a
 
   expect(screen.getByLabelText('封面标题')).toHaveValue('我的封面标题')
   expect(screen.getByLabelText('作者')).toHaveValue('花萍雨')
+  expect(screen.getByLabelText('标题字号')).toHaveValue('40')
 })
 
 test('switches to cover mode and shows cover controls', async () => {
@@ -303,7 +304,26 @@ test('switches to cover mode and shows cover controls', async () => {
 
   expect(screen.getByLabelText('封面标题')).toBeInTheDocument()
   expect(screen.getByLabelText('上传封面主图')).toBeInTheDocument()
+  expect(screen.getByLabelText('标题字号')).toBeInTheDocument()
+  expect(screen.getByLabelText('标题字号数值')).toBeInTheDocument()
   expect(screen.getByText('封面实时预览')).toBeInTheDocument()
+})
+
+test('updates cover title font size from slider input', async () => {
+  render(<SoftPageEditor />)
+
+  fireEvent.click(screen.getAllByRole('button', { name: '封面制作' })[0]!)
+
+  const slider = screen.getByLabelText('标题字号')
+
+  fireEvent.change(slider, {
+    target: {
+      value: '32',
+    },
+  })
+
+  expect(screen.getByLabelText('标题字号数值')).toHaveValue(32)
+  expect(screen.getByText('请输入封面标题')).toBeInTheDocument()
 })
 
 test('renders fixed cover layout with hero image, title, author and divider', () => {

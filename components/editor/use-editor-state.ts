@@ -26,6 +26,7 @@ const defaultCoverDraft: CoverDraft = {
   author: '花萍雨',
   heroImageSrc: null,
   heroImageAlt: '',
+  titleFontSize: 40,
   hasDivider: true,
   titleTouched: false,
 }
@@ -95,6 +96,13 @@ export function useEditorState() {
     }))
   }
 
+  const updateCoverTitleFontSize = (value: number) => {
+    setCoverDraft((currentDraft) => ({
+      ...currentDraft,
+      titleFontSize: value,
+    }))
+  }
+
   const setCoverHeroImage = (src: string | null, alt: string) => {
     setCoverDraft((currentDraft) => ({
       ...currentDraft,
@@ -120,6 +128,7 @@ export function useEditorState() {
       uploadError,
       typography,
       updateCoverTitle,
+      updateCoverTitleFontSize,
       updateTypographyFieldFromInput,
     }),
     [blocks, coverDraft, mode, sourceError, sourceName, typography, uploadError],

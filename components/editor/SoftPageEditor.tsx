@@ -45,6 +45,7 @@ export function SoftPageEditor() {
     uploadError,
     typography,
     updateCoverTitle,
+    updateCoverTitleFontSize,
     updateTypographyFieldFromInput,
   } = useEditorState()
   const measureRootRef = useRef<HTMLDivElement | null>(null)
@@ -544,6 +545,35 @@ export function SoftPageEditor() {
               />
             </label>
             <label className="field-stack field-full">
+              <span className="field-label">标题字号</span>
+              <div style={{ display: 'grid', gap: 8 }}>
+                <input
+                  aria-label="标题字号"
+                  type="range"
+                  min={28}
+                  max={56}
+                  step={1}
+                  value={coverDraft.titleFontSize}
+                  disabled={isExporting}
+                  onChange={(event) => updateCoverTitleFontSize(Number(event.target.value))}
+                />
+                <input
+                  aria-label="标题字号数值"
+                  type="number"
+                  min={28}
+                  max={56}
+                  step={1}
+                  value={coverDraft.titleFontSize}
+                  disabled={isExporting}
+                  onChange={(event) =>
+                    updateCoverTitleFontSize(
+                      event.target.value === '' ? Number.NaN : Number(event.target.value),
+                    )
+                  }
+                />
+              </div>
+            </label>
+            <label className="field-stack field-full">
               <span className="field-label">作者</span>
               <input aria-label="作者" type="text" value={coverDraft.author} readOnly />
             </label>
@@ -737,6 +767,7 @@ export function SoftPageEditor() {
               <CoverCanvas
                 title={coverDraft.title}
                 author={coverDraft.author}
+                titleFontSize={coverDraft.titleFontSize}
                 heroImageSrc={coverDraft.heroImageSrc}
                 heroImageAlt={coverDraft.heroImageAlt || '封面主图'}
                 hasDivider={coverDraft.hasDivider}
