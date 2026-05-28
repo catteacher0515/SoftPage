@@ -30,7 +30,24 @@ export function CoverCanvas({
         overflow: 'hidden',
       }}
     >
-      <div aria-hidden="true" />
+      <div
+        aria-hidden="true"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+        }}
+      >
+        <div
+          data-testid="cover-accent"
+          style={{
+            width: 40,
+            height: 10,
+            borderRadius: 4,
+            background: '#efefee',
+            boxShadow: 'inset 0 0 0 1px rgba(0, 0, 0, 0.02)',
+          }}
+        />
+      </div>
       <div
         data-testid="cover-hero"
         style={{
