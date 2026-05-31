@@ -2,12 +2,12 @@
 
 import html2canvas from 'html2canvas'
 
-const EXPORT_SCALE = 2
+const COVER_EXPORT_SCALE = 3
 
 export async function exportCoverAsPng(element: HTMLElement) {
   const canvas = await html2canvas(element, {
-    backgroundColor: null,
-    scale: EXPORT_SCALE,
+    backgroundColor: '#ffffff',
+    scale: COVER_EXPORT_SCALE,
     useCORS: true,
   })
 

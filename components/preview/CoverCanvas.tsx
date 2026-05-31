@@ -1,3 +1,5 @@
+import { forwardRef } from 'react'
+
 type CoverCanvasProps = {
   title: string
   author: string
@@ -7,16 +9,17 @@ type CoverCanvasProps = {
   hasDivider: boolean
 }
 
-export function CoverCanvas({
+export const CoverCanvas = forwardRef<HTMLElement, CoverCanvasProps>(function CoverCanvas({
   title,
   author,
   titleFontSize,
   heroImageSrc,
   heroImageAlt,
   hasDivider,
-}: CoverCanvasProps) {
+}, ref) {
   return (
     <article
+      ref={ref}
       style={{
         aspectRatio: '9 / 16',
         width: '100%',
@@ -50,6 +53,7 @@ export function CoverCanvas({
       </div>
       <div
         data-testid="cover-hero"
+        aria-label={heroImageSrc ? heroImageAlt : undefined}
         style={{
           display: 'flex',
           alignItems: 'stretch',
@@ -58,20 +62,13 @@ export function CoverCanvas({
           marginInline: '-28px',
           borderRadius: 0,
           overflow: 'hidden',
+          backgroundImage: heroImageSrc ? `url(${heroImageSrc})` : undefined,
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          backgroundSize: 'cover',
         }}
       >
-        {heroImageSrc ? (
-          <img
-            alt={heroImageAlt}
-            src={heroImageSrc}
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              display: 'block',
-            }}
-          />
-        ) : (
+        {heroImageSrc ? null : (
           <div
             style={{
               width: '100%',
@@ -137,4 +134,4 @@ export function CoverCanvas({
       </div>
     </article>
   )
-}
+})

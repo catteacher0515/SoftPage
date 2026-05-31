@@ -7,7 +7,7 @@ import {
   parseMarkdownDocument,
 } from './markdown'
 import { exportCoverAsPng } from '../export/export-cover'
-import { exportPagesAsPng } from '../export/export-pages'
+import { exportCoverAndPagesAsPngZip, exportPagesAsPng } from '../export/export-pages'
 import { CoverCanvas } from '../preview/CoverCanvas'
 import { PageCanvas } from '../preview/PageCanvas'
 import {
@@ -50,7 +50,7 @@ export function SoftPageEditor() {
   } = useEditorState()
   const measureRootRef = useRef<HTMLDivElement | null>(null)
   const pageElementsRef = useRef(new Map<string, HTMLElement>())
-  const coverElementRef = useRef<HTMLDivElement | null>(null)
+  const coverElementRef = useRef<HTMLElement | null>(null)
   const [measuredSegments, setMeasuredSegments] = useState<MeasuredSegment[]>([])
   const [previewWidth, setPreviewWidth] = useState(0)
   const [isExporting, setIsExporting] = useState(false)
@@ -214,6 +214,43 @@ export function SoftPageEditor() {
     } catch (error) {
       setExportError(
         error instanceof Error ? error.message : '封面导出失败，请重试。',
+      )
+    } finally {
+      setIsExporting(false)
+    }
+  }
+
+  const handleCompleteExport = async () => {
+    if (isExporting) return
+
+    setExportError(null)
+
+    if (pages.length === 0) {
+      setExportError('当前没有可导出的页面。')
+      return
+    }
+
+    if (!coverElementRef.current) {
+      setExportError('封面预览还未准备完成，请稍后重试。')
+      return
+    }
+
+    const pageElements = pages
+      .map((page) => pageElementsRef.current.get(page.id))
+      .filter((element): element is HTMLElement => element !== undefined)
+
+    if (pageElements.length !== pages.length) {
+      setExportError('预览页面还未准备完成，请稍后重试。')
+      return
+    }
+
+    setIsExporting(true)
+
+    try {
+      await exportCoverAndPagesAsPngZip(coverElementRef.current, pageElements)
+    } catch (error) {
+      setExportError(
+        error instanceof Error ? error.message : '完整打包失败，请重试。',
       )
     } finally {
       setIsExporting(false)
@@ -712,6 +749,14 @@ export function SoftPageEditor() {
             <p className="panel-eyebrow">导出</p>
             <h2>成品输出</h2>
           </div>
+          <button
+            type="button"
+            className="primary-action"
+            onClick={() => void handleCompleteExport()}
+            disabled={isExporting}
+          >
+            {isExporting ? '打包中…' : '封面+正文一键打包'}
+          </button>
           {mode === 'body' ? (
             <>
               <button
@@ -763,16 +808,15 @@ export function SoftPageEditor() {
 
         <div className="preview-stage__canvas">
           {mode === 'cover' ? (
-            <div ref={coverElementRef}>
-              <CoverCanvas
-                title={coverDraft.title}
-                author={coverDraft.author}
-                titleFontSize={coverDraft.titleFontSize}
-                heroImageSrc={coverDraft.heroImageSrc}
-                heroImageAlt={coverDraft.heroImageAlt || '封面主图'}
-                hasDivider={coverDraft.hasDivider}
-              />
-            </div>
+            <CoverCanvas
+              ref={coverElementRef}
+              title={coverDraft.title}
+              author={coverDraft.author}
+              titleFontSize={coverDraft.titleFontSize}
+              heroImageSrc={coverDraft.heroImageSrc}
+              heroImageAlt={coverDraft.heroImageAlt || '封面主图'}
+              hasDivider={coverDraft.hasDivider}
+            />
           ) : pages.length === 0 ? (
             <div className="empty-state" role="status">
               <p className="empty-state__title">暂无可预览内容</p>
@@ -950,6 +994,28 @@ export function SoftPageEditor() {
             })}
           </article>
         </div>
+        {mode === 'body' ? (
+          <div
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              left: -10000,
+              top: 0,
+              visibility: 'hidden',
+              pointerEvents: 'none',
+            }}
+          >
+            <CoverCanvas
+              ref={coverElementRef}
+              title={coverDraft.title}
+              author={coverDraft.author}
+              titleFontSize={coverDraft.titleFontSize}
+              heroImageSrc={coverDraft.heroImageSrc}
+              heroImageAlt={coverDraft.heroImageAlt || '封面主图'}
+              hasDivider={coverDraft.hasDivider}
+            />
+          </div>
+        ) : null}
       </section>
     </main>
   )

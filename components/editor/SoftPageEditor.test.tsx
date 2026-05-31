@@ -5,11 +5,42 @@ import { SoftPageEditor } from './SoftPageEditor'
 import html2canvas from 'html2canvas'
 import { CoverCanvas } from '../preview/CoverCanvas'
 import { exportCoverAsPng } from '../export/export-cover'
+import * as exportPages from '../export/export-pages'
 
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
 })
+
+function mockEditorMeasurements() {
+  vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function getBoundingClientRect() {
+    if (this.hasAttribute('data-measure-segment')) {
+      return {
+        bottom: 24,
+        height: 24,
+        left: 0,
+        right: 300,
+        top: 0,
+        width: 300,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }
+    }
+
+    return {
+      bottom: 640,
+      height: 640,
+      left: 0,
+      right: 360,
+      top: 0,
+      width: 360,
+      x: 0,
+      y: 0,
+      toJSON: () => ({}),
+    }
+  })
+}
 
 test('renders editorial workspace sections and export action', () => {
   render(<SoftPageEditor />)
@@ -270,6 +301,66 @@ test('exports pages with their live background instead of forcing the old beige 
   )
 })
 
+test('exports cover and pages together as one zip package', async () => {
+  const { exportCoverAndPagesAsPngZip } = await import('../export/export-pages')
+  const JSZipModule = await import('jszip')
+  const FakeZip = JSZipModule.default as unknown as {
+    instances: Array<{ files: Map<string, Blob> }>
+  }
+  const clickSpy = vi.fn()
+  const originalCreateElement = document.createElement.bind(document)
+  const createElementSpy = vi.spyOn(document, 'createElement')
+  const anchor = originalCreateElement('a')
+  const cover = document.createElement('article')
+  const pages = [document.createElement('article'), document.createElement('article')]
+
+  cover.setAttribute('data-export-kind', 'cover')
+  pages[0]?.setAttribute('data-export-kind', 'page-1')
+  pages[1]?.setAttribute('data-export-kind', 'page-2')
+  anchor.click = clickSpy
+
+  Object.defineProperty(URL, 'createObjectURL', {
+    writable: true,
+    value: vi.fn(() => 'blob:softpage-complete-export'),
+  })
+  Object.defineProperty(URL, 'revokeObjectURL', {
+    writable: true,
+    value: vi.fn(),
+  })
+  createElementSpy.mockImplementation((tagName: string) => {
+    if (tagName.toLowerCase() === 'a') {
+      return anchor
+    }
+
+    return originalCreateElement(tagName)
+  })
+
+  await exportCoverAndPagesAsPngZip(cover, pages)
+
+  const latestZip = FakeZip.instances.at(-1)
+
+  expect(Array.from(latestZip?.files.keys() ?? [])).toEqual([
+    'softpage-cover.png',
+    'softpage-page-01.png',
+    'softpage-page-02.png',
+  ])
+  expect(vi.mocked(html2canvas).mock.calls.map(([element]) => element.getAttribute('data-export-kind'))).toEqual([
+    'cover',
+    'page-2',
+    'page-1',
+  ])
+  expect(html2canvas).toHaveBeenCalledWith(
+    cover,
+    expect.objectContaining({
+      backgroundColor: '#ffffff',
+      scale: 3,
+    }),
+  )
+  expect(anchor.download).toBe('softpage-complete-export.zip')
+  expect(anchor.href).toBe('blob:softpage-complete-export')
+  expect(clickSpy).toHaveBeenCalledTimes(1)
+})
+
 test('prefills cover title from markdown title and uses fixed default author', async () => {
   render(<SoftPageEditor />)
 
@@ -341,7 +432,10 @@ test('renders fixed cover layout with hero image, title, author and divider', ()
 
   expect(cover.getByRole('heading', { name: '封面标题' })).toBeInTheDocument()
   expect(cover.getByText('| 作者：花萍雨')).toBeInTheDocument()
-  expect(cover.getByAltText('封面主图')).toBeInTheDocument()
+  expect(cover.getByTestId('cover-hero')).toHaveAttribute('aria-label', '封面主图')
+  expect(cover.getByTestId('cover-hero')).toHaveStyle(
+    'background-image: url(data:image/png;base64,abc)',
+  )
   expect(cover.getByTestId('cover-divider')).toBeInTheDocument()
 })
 
@@ -356,7 +450,10 @@ test('uploads one cover hero image and updates preview', async () => {
     target: { files: [file] },
   })
 
-  expect(await screen.findByAltText('cover.png')).toBeInTheDocument()
+  await waitFor(() => {
+    expect(screen.getByTestId('cover-hero')).toHaveAttribute('aria-label', 'cover.png')
+  })
+  expect(screen.getByTestId('cover-hero').style.backgroundImage).toContain('data:image/png')
 })
 
 test('exports cover png separately', async () => {
@@ -368,4 +465,28 @@ test('exports cover png separately', async () => {
   await waitFor(() => {
     expect(exportCoverAsPng).toHaveBeenCalledTimes(1)
   })
+
+  expect(vi.mocked(exportCoverAsPng).mock.calls[0]?.[0].tagName).toBe('ARTICLE')
+})
+
+test('exports cover and body pages from the editor export panel', async () => {
+  const exportSpy = vi
+    .spyOn(exportPages, 'exportCoverAndPagesAsPngZip')
+    .mockResolvedValue(undefined)
+
+  mockEditorMeasurements()
+  render(<SoftPageEditor />)
+
+  await screen.findByText('1 页')
+  fireEvent.click(screen.getByRole('button', { name: '封面+正文一键打包' }))
+
+  await waitFor(() => {
+    expect(exportSpy).toHaveBeenCalledTimes(1)
+  })
+
+  const [coverElement, pageElements] = exportSpy.mock.calls[0] ?? []
+
+  expect(coverElement).toBeInstanceOf(HTMLElement)
+  expect(pageElements).toHaveLength(1)
+  expect(pageElements?.[0]).toHaveAttribute('data-preview-page', 'page-1')
 })
